@@ -6,6 +6,8 @@
 #' @param y
 #'
 #' @return
+#'
+#' @importFrom MASS lda
 #' @export
 #'
 #' @examples
@@ -18,7 +20,7 @@ get_error_LDA <- function(x,y){
   x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   dat_lda = as.data.frame(cbind(x,y))
   result = tryCatch({
-    fit <<- lda(y~., data = dat_lda) # fit an LDA model in the node
+    fit <<- MASS::lda(y~., data = dat_lda) # fit an LDA model in the node
     mis_class = sum(predict(fit,dat_lda)$class != y)
   }, error = function(e) { # variable being constant within groups
     flag_lda <<- FALSE
@@ -43,7 +45,7 @@ pred_LDA <- function(x,y){
   }
   x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   result = tryCatch({
-    fit <<- lda(y~., data = x) # fit an LDA model in the node
+    fit <<- MASS::lda(y~., data = x) # fit an LDA model in the node
   }, error = function(e) { # variable being constant within groups
     flag_lda <<- FALSE
   })

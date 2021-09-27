@@ -5,6 +5,9 @@
 #'
 #' @return
 #' @export
+#' @import ggplot2
+#' @importFrom scales expand_range
+#' @importFrom MASS lda
 #'
 #' @examples
 plotsingle <- function(fit, idx){

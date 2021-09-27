@@ -5,6 +5,7 @@
 #'
 #' @return
 #' @export
+#' @importFrom purrr quietly
 #'
 #' @examples
 var_select_cat <- function(x,y){

@@ -6,6 +6,7 @@
 #'
 #' @return
 #' @export
+#' @importFrom MASS lda
 #'
 #' @examples
 split_cat <- function(x,y, mis_curr){

@@ -6,6 +6,7 @@
 #'
 #' @return
 #' @export
+#' @import visNetwork
 #'
 #' @examples
 plotall <- function(fit){
@@ -47,12 +48,12 @@ plotall <- function(fit){
                       group = group_plot)
 
   # 本地预览
-  p1 = visNetwork::visNetwork(nodes, edges, width = "100%", height = "400px") %>%
-    visNetwork::visNodes(shape = 'dot', color = list(background = "white",
+  p1 = visNetwork(nodes, edges, width = "100%", height = "400px") %>%
+    visNodes(shape = 'dot', color = list(background = "white",
                                          border = "black"))%>%
-    visNetwork::visHierarchicalLayout(levelSeparation = 100)%>%
-    visNetwork::visLegend(width = 0.1, position = "right", main = "Group")%>%
-    visNetwork::visInteraction(dragNodes = FALSE,
+    visHierarchicalLayout(levelSeparation = 100)%>%
+    visLegend(width = 0.1, position = "right", main = "Group")%>%
+    visInteraction(dragNodes = FALSE,
                    dragView = TRUE,
                    zoomView = TRUE)
   return(p1)
