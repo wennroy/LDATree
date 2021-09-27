@@ -1,16 +1,23 @@
 Package: LDATree
-Title: What the Package Does (One Line, Title Case)
+Title: Classification tree with LDA structure in the terminal nodes
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Siyu",
+           family = "Wang",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
+           email = "swang739@wisc.edu",
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Description: Use Linear Discriminant Analysis (LDA) in the classification problem.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.2
+Imports: 
+    dplyr,
+    ggplot2,
+    MASS,
+    purrr,
+    scales,
+    stats,
+    visNetwork
