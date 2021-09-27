@@ -3,6 +3,7 @@
 export(LDAtree)
 export(generate_node)
 export(get_error_LDA)
-export(info_panel)
+export(plotall)
+export(plotsingle)
 export(split_cat)
 export(var_select_cat)

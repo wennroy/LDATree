@@ -8,7 +8,7 @@
 #'
 #' @examples
 var_select_cat <- function(x,y){
-  fit = quietly(chisq.test)(x,y)$result
+  fit = purrr::quietly(chisq.test)(x,y)$result
   ans = ifelse(fit$parameter > 1L, wilson_hilferty(fit$statistic, fit$parameter), fit$statistic)
   return(ans)
 }
