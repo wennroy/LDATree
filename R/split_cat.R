@@ -10,7 +10,7 @@
 #' @examples
 split_cat <- function(x,y, mis_curr){
   x = factor(x) # 这个relevel很有必要，要不然会因为model.matrix有一列全是0从而导致constant
-  fit = lda(y~x-1)
+  fit = MASS::lda(y~x-1)
   l = levels(x)[which(coefficients(fit)>0)] # 无法判断是否有提升
   return(l)
 }
