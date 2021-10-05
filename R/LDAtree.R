@@ -9,7 +9,7 @@
 #' @export
 #'
 #' @examples
-LDAtree <- function(formula, data){
+LDAtree <- function(formula, data, prior = NULL){
   # data 是含有response的， dat不含有
   response = model.frame(formula, data)[,1]
   if(!is.factor(response)){
@@ -20,6 +20,12 @@ LDAtree <- function(formula, data){
   # dat = as.data.frame(model.matrix(formula, data)[,-1])
   dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
   col_idx = 1:ncol(dat)
+
+  # Put prior in somewhere
+  if(is.null(prior)){
+    prior = tabulate(response)/nrow(data) # 如果没给prior，用estimated prior
+  }
+
   # 下面就是陈年老code
 
   queue = list(list(1:nrow(dat),col_idx,1L)) # Used to save the current intermediate nodes
@@ -28,7 +34,9 @@ LDAtree <- function(formula, data){
   max_level = 4
 
   while(length(queue)!=0){ # 当还有节点没有被划分好
-    node_tmp = generate_node(idx_r = queue[[1]][[1]], idx_c = queue[[1]][[2]], idx = queue[[1]][[3]]) # Get the current subset index
+    node_tmp = generate_node(idx_r = queue[[1]][[1]],
+                             idx_c = queue[[1]][[2]],
+                             idx = queue[[1]][[3]]) # Get the current subset index
     cat('The current node index is', node_tmp$idx, '\n')
     queue = queue[-1] # Remove the idx from the waiting list
 
@@ -80,11 +88,11 @@ LDAtree <- function(formula, data){
     # fit <- total_LDA(dat_tmp, response_tmp)
     # predict_tmp = predict(fit,newdata = dat_tmp) # Predict using the fitted model
     # node_tmp$misclass = sum(predict_tmp$class != response_tmp)
-    node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp) # 这个信息会一直保留，因为最后需要展示在图上
+    node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp, prior) # 这个信息会一直保留，因为最后需要展示在图上
 
     # 对 maximum level 进行操作
     if(node_tmp$idx >= 2 ** (max_level-1)){
-      ans = pred_LDA(dat_tmp, response_tmp)
+      ans = pred_LDA(dat_tmp, response_tmp, prior)
       node_tmp$pred_method = ans[[1]]
       node_tmp$lda_pred = ans[[2]]
       node_saved[[node_tmp$idx]] = list(node_tmp)
@@ -105,7 +113,7 @@ LDAtree <- function(formula, data){
 
       flag_class = class(dat_tmp[,c_split]) %in% c('numeric', 'integer')
       if(flag_class){
-        threshold = split_noncat(dat_tmp[,c_split],response_tmp,dat_tmp, node_tmp$misclass)
+        threshold = split_noncat(dat_tmp[,c_split],response_tmp,dat_tmp, node_tmp$misclass, prior)
         node_tmp$split_cri = threshold
         if(is.null(threshold)){ # 如果没有提升
           # 这里的代码，对于预测新数据很关键
@@ -119,7 +127,7 @@ LDAtree <- function(formula, data){
           idx_right = setdiff(1:node_tmp$size,idx_left)
         }
       }else{
-        left_group = split_cat(dat_tmp[,c_split],response_tmp)
+        left_group = split_cat(dat_tmp[,c_split],response_tmp, dat_tmp, node_tmp$misclass, prior)
         node_tmp$split_cri = left_group
         idx_left = which(dat_tmp[,c_split] %in% left_group)
         idx_right = setdiff(1:node_tmp$size,idx_left)

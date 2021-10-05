@@ -10,7 +10,11 @@
 #' @examples
 var_select_cat <- function(x,y){
   fit = purrr::quietly(chisq.test)(x,y)$result
-  ans = ifelse(fit$parameter > 1L, wilson_hilferty(fit$statistic, fit$parameter), fit$statistic)
+  # ans = ifelse(fit$parameter > 1L, wilson_hilferty(fit$statistic, fit$parameter), fit$statistic)
+  # 在不小于2.2E-16的时候，先用原本的p-value。
+  ans = ifelse(fit$parameter > 1L, ifelse(fit$p.value > 10^(-16),
+                                          qchisq(1-fit$p.value, df = 1),
+                                          wilson_hilferty(fit$statistic,fit$parameter)),fit$statistic)
   return(ans)
 }
 

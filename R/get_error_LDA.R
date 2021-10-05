@@ -11,7 +11,7 @@
 #' @export
 #'
 #' @examples
-get_error_LDA <- function(x,y){
+get_error_LDA <- function(x,y,prior){
   # 两种 LDA 打包在一起
   flag_lda = TRUE
   if(is.null(dim(x))){
@@ -20,7 +20,8 @@ get_error_LDA <- function(x,y){
   x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   dat_lda = as.data.frame(cbind(x,y))
   result = tryCatch({
-    fit <<- MASS::lda(y~., data = dat_lda) # fit an LDA model in the node
+    fit <<- MASS::lda(y~., data = dat_lda, prior = prior) # fit an LDA model in the node
+    # fit <<- MASS::lda(y~., data = dat_lda) # fit an LDA model in the node
     mis_class = sum(predict(fit,dat_lda)$class != y)
   }, error = function(e) { # variable being constant within groups
     flag_lda <<- FALSE
@@ -37,7 +38,7 @@ get_error_LDA <- function(x,y){
 # stepclass(x_l, y, method = 'lda', direction = 'forward', fold = 10)
 
 # 把前面的函数改一改
-pred_LDA <- function(x,y){
+pred_LDA <- function(x,y,prior){
   flag_lda = TRUE
   m = 'lda'
   if(is.null(dim(x))){
@@ -45,7 +46,7 @@ pred_LDA <- function(x,y){
   }
   x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   result = tryCatch({
-    fit <<- MASS::lda(y~., data = x) # fit an LDA model in the node
+    fit <<- MASS::lda(y~., data = x, prior = prior) # fit an LDA model in the node
   }, error = function(e) { # variable being constant within groups
     flag_lda <<- FALSE
   })

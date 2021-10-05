@@ -28,14 +28,18 @@ plotall <- function(fit){
     edges[idx_curr,] = c(floor(id_tmp$idx/2),id_tmp$idx)
     if(!is.na(id_tmp$left)){ # 如果是中间节点，要提供的信息：划分标准，各类占比，总数
       text_zhanbi = paste(round(id_tmp$portion / id_tmp$size,2), collapse = ' / ')
-      label_plot[idx_curr] = paste(id_tmp$criteria, text_zhanbi, id_tmp$size, sep = ' \n ')
+      node_idx_plot = paste('Node',id_tmp$idx)
+      label_plot[idx_curr] = paste(id_tmp$criteria, text_zhanbi,
+                                   id_tmp$size, node_idx_plot, sep = ' \n ')
       stack = c(stack,id_tmp$left,id_tmp$right)
       group_plot[idx_curr] = NA # 中间节点不分组不涂色
     }else{ # 如果是叶子节点，要提供的信息：预测类别，各类具体，正确/总数
       group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion)]
       text_zhanbi = paste(id_tmp$portion, collapse = ' / ')
+      node_idx_plot = paste('Node',id_tmp$idx)
       text_lda = paste(id_tmp$size - id_tmp$misclass, id_tmp$size, sep = ' / ')
-      label_plot[idx_curr] = paste(group_plot[idx_curr], text_zhanbi, text_lda, sep = "\n")
+      label_plot[idx_curr] = paste(group_plot[idx_curr], text_zhanbi,
+                                   text_lda,node_idx_plot, sep = "\n")
 
     }
     idx_curr = idx_curr + 1L
@@ -45,7 +49,8 @@ plotall <- function(fit){
                       title = info_panel(fit), # Show when you click
                       level = level_plot,
                       label = label_plot,
-                      group = group_plot)
+                      group = group_plot,
+                      shadow = TRUE)
 
   # 本地预览
   p1 = visNetwork(nodes, edges, width = "100%", height = "400px") %>%
