@@ -134,7 +134,7 @@ split_cat <- function(x,y, datx, mis_curr, prior){
     eigen_keep = which(round(fit$values,8) > 0) # 保留正值
     X_dummy = dummy_matrix %*% fit$vectors[,eigen_keep] # Projection
     new_data = data.frame(y, X_dummy)
-    fit_lda = lda(y~., data = new_data, prior = prior)
+    fit_lda = lda(y~., data = new_data, prior = prior) # 这个LDA需要后面的scaling，所以先不变robust了
     X_num = X_dummy %*% fit_lda$scaling[,1] # Project 到 LD1 上面去
     reexp = unique(data.frame(x,X_num)) # 找到x和X_num的对照表
     threshold = split_noncat(X_num,y,datx,Inf)
@@ -146,8 +146,21 @@ split_cat <- function(x,y, datx, mis_curr, prior){
   # return(l)
 }
 
-split_noncat <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
+
+# Split_noncat ------------------------------------------------------------
+
+split_noncat <- function(x,y,datx, mis_curr, prior){
   cat('Split NonCat \n')
+  threshold = sort(unique(x))
+  cat('length of x', length(threshold),'\n')
+  ans = ifelse(length(threshold) <= 1000,
+               split_noncat_small(x,y,datx, mis_curr, prior),
+               split_noncat_large(x,y,datx, mis_curr, prior))
+  return(ans)
+}
+
+split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
+  cat('Split NonCat Small \n')
   threshold = sort(unique(x))
   ans = rep(Inf,length(threshold))
   for(i in 1:(length(threshold)-1)){
@@ -170,11 +183,54 @@ split_noncat <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太�
     ans[i] = mis_l + mis_r
   }
   idx_threshold = which(ans == min(ans))[1]
+  return(threshold[idx_threshold])
   # cat(ans,mis_curr,'\n')
   # print(c(ans[idx_threshold],mis_curr))
-  if(ans[idx_threshold] >= mis_curr){
-    return(NULL)
-  }else{
-    return(threshold[idx_threshold])
+  # if(ans[idx_threshold] >= mis_curr){
+  #   return(NULL)
+  # }else{
+  #   return(threshold[idx_threshold])
+  # }
+}
+
+split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
+  cat('Split NonCat Large\n')
+  threshold = sort(unique(x))
+  left_pointer = 1
+  right_pointer = length(threshold)
+  ans = matrix(c(0,Inf),1,2)
+  while(right_pointer >= left_pointer){
+    cat(left_pointer, right_pointer, '\n')
+    current_index = (left_pointer + right_pointer) %/% 2
+    idx = which(x<= threshold[current_index])
+    y_l = y[idx]
+    y_r = y[-idx]
+    mis_l = mis_r = 0
+    if(length(unique(y_l))!=1){ # 我们采用小于等于的准则
+      x_l = datx[idx,]
+      # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
+      # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
+      mis_l = get_error_LDA(x_l, y_l, prior)
+    }
+    if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
+      x_r = datx[-idx,]
+      # fit = quietly(total_LDA)(x_r, y_r)$result
+      # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
+      mis_r = get_error_LDA(x_r, y_r, prior)
+    }
+    ans = rbind(ans, c(current_index, mis_l + mis_r))
+    if(mis_l >= mis_r){
+      right_pointer = current_index - 1
+    }else{
+      left_pointer = current_index + 1
+    }
   }
+  idx_threshold = ans[which.min(ans[,2]),1]
+  print(ans)
+  return(threshold[idx_threshold])
+  # if(ans[idx_threshold] >= mis_curr){
+  #   return(NULL)
+  # }else{
+  #   return(threshold[idx_threshold])
+  # }
 }

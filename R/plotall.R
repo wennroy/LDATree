@@ -34,7 +34,7 @@ plotall <- function(fit){
       stack = c(stack,id_tmp$left,id_tmp$right)
       group_plot[idx_curr] = NA # 中间节点不分组不涂色
     }else{ # 如果是叶子节点，要提供的信息：预测类别，各类具体，正确/总数
-      group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion)]
+      group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion * fit$prior)]
       text_zhanbi = paste(id_tmp$portion, collapse = ' / ')
       node_idx_plot = paste('Node',id_tmp$idx)
       text_lda = paste(id_tmp$size - id_tmp$misclass, id_tmp$size, sep = ' / ')

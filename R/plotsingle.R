@@ -30,10 +30,14 @@ plotsingle <- function(fit, idx){
     return(p)
   }
 
-  dat_combined = cbind(fit$dat[idx_r, idx_c],response_tmp)
+  # 10/12/2021 才发现group coonstant的原因是因为那些空的level，所以这里用了droplevels
+  dat_combined = cbind(fit$dat[idx_r, idx_c],response_tmp) %>%
+    droplevels()
   colnames(dat_combined)[node_tmp$covs+1] = fit$response_name
 
-  idx_same = apply(dat_combined,2,function(x) length(unique(x)) == 1)
+  # 删除那些within group constant
+  idx_same = apply(dat_combined,2,function(x) within_check(response_tmp,x))[-(node_tmp$covs+1)]
+  # idx_same = apply(dat_combined,2,function(x) length(unique(x)) == 1)
   if(any(idx_same)){
     dat_combined = dat_combined[,-which(idx_same)] # 删除那些x只有一个值的变量
   }

@@ -9,6 +9,7 @@
 #'
 #' @examples
 var_select_cat <- function(x,y){
+  # 自动会删去那些为0的level
   fit = purrr::quietly(chisq.test)(x,y)$result
   # ans = ifelse(fit$parameter > 1L, wilson_hilferty(fit$statistic, fit$parameter), fit$statistic)
   # 在不小于2.2E-16的时候，先用原本的p-value。
@@ -66,3 +67,22 @@ var_select_all <- function(x, y, Nt, Jt){
     return(var_select_cat(x,y))
   }
 }
+
+# 这个函数是为了防止LDA因为constant in groups 而报错
+within_check <- function(x,y){
+  overall_list = unique(x)
+  for(i in 1:length(overall_list)){
+    idx_tmp = which(x == overall_list[i])
+    if(length(unique(y[idx_tmp])) > 1){
+      return(FALSE)
+    }
+  }
+  return(TRUE)
+}
+
+
+
+
+
+
+

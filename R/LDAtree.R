@@ -117,6 +117,7 @@ LDAtree <- function(formula, data, prior = NULL){
         node_tmp$split_cri = threshold
         if(is.null(threshold)){ # 如果没有提升
           # 这里的代码，对于预测新数据很关键
+          # 暂时我们可以先允许早期停止，之后的话，加上了pruning之后，我们可以选择不停止
           ans = pred_LDA(dat_tmp, response_tmp)
           node_tmp$pred_method = ans[[1]]
           node_tmp$lda_pred = ans[[2]]
@@ -152,6 +153,7 @@ LDAtree <- function(formula, data, prior = NULL){
   res$formula = formula
   res$treenode = node_saved
   res$dat = dat
+  res$prior = prior
   res$response = response # 为了后面的画图
   res$response_name = colnames(model.frame(formula, data))[1]
   cat('The LDA tree is completed.\n')
