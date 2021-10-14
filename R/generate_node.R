@@ -25,7 +25,8 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA){ #还剩哪些行，�
     criteria = NA, # 用来打印在output tree上面
     split_idx = NA, # 用来记录是用哪一个变量进行split
     split_cri = NA, # Splitting criteria
-    pred_method = NA,
+    split_na_action = NA, # 把NA分到左面或者右面, 1 代表左面
+    pred_method = NA, #
     # prior = NA, # group prior for each class, 目前感觉没啥用
     lda_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测
   )

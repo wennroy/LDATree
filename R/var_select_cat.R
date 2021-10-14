@@ -10,6 +10,10 @@
 #' @examples
 var_select_cat <- function(x,y){
   # 自动会删去那些为0的level
+  if(anyNA(x)){
+    levels(x) = c(levels(x), 'MissingDalian')
+    x[is.na(x)] <- 'MissingDalian'
+  }
   fit = purrr::quietly(chisq.test)(x,y)$result
   # ans = ifelse(fit$parameter > 1L, wilson_hilferty(fit$statistic, fit$parameter), fit$statistic)
   # 在不小于2.2E-16的时候，先用原本的p-value。
@@ -27,17 +31,17 @@ wilson_hilferty = function(chi,df){ # 把df = K 的卡方变成 df = 1 的卡方
 # 目前改成分位数法
 var_select_noncat <- function(x, y, Nt, Jt){
   # Followed Loh09 Paper
-  m = mean(x)
-  s = sd(x)
+  m = mean(x,na.rm = T)
+  s = sd(x,na.rm = T)
   if(Nt >= 30 * Jt){
-    split_1 = quantile(x,c(0.25,0.5,0.75))
+    split_1 = quantile(x,c(0.25,0.5,0.75), na.rm = T)
     if(length(unique(split_1)) != 3){
       split_1 = c(m - s *sqrt(3)/2, m, m + s *sqrt(3)/2)
     }
     x = cut(x, breaks = c(-Inf, split_1, Inf), right = TRUE)
     # 这里如果 right = FALSE, 将会违背我们分位数的初衷
   }else{
-    split_2 = quantile(x,c(0.33,0.66))
+    split_2 = quantile(x,c(0.33,0.66), na.rm = T)
     if(length(unique(split_2)) != 2){
       split_2 = c(m - s *sqrt(3)/3, m + s *sqrt(3)/3)
     }
@@ -80,8 +84,23 @@ within_check <- function(x,y){
   return(TRUE)
 }
 
+naive_impute <- function(x){
+  for(i in 1:ncol(x)){
+    if(anyNA(x[,i])){
+      if(class(x[,i]) %in% c('numeric', 'integer')){
+        x[which(is.na(x[,i])),i] = mean(x[,i], na.rm = T)
+      }else{
+        x[which(is.na(x[,i])),i] = getmode(x[,i])
+      }
+    }
+  }
+  return(x)
+}
 
-
+getmode <- function(v) {
+  uniqv <- unique(v)
+  return(uniqv[which.max(tabulate(match(v, uniqv)))])
+}
 
 
 

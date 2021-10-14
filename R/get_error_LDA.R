@@ -17,7 +17,8 @@ get_error_LDA <- function(x,y,prior){
   if(is.null(dim(x))){
     x = matrix(x,,1)
   }
-  x = x[,apply(x,2,function(x) !within_check(y,x))] # 改掉group constant
+  x = naive_impute(x)
+  x = x[,apply(x,2,function(x) !within_check(y,x)), drop = FALSE] # 改掉group constant
   # x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   x = droplevels(x)
   dat_lda = as.data.frame(cbind(x,y))
@@ -48,7 +49,8 @@ pred_LDA <- function(x,y,prior){
   if(is.null(dim(x))){
     x = matrix(x,,1)
   }
-  x = x[,apply(x,2,function(x) !within_check(y,x))] # 改掉group constant
+  x = naive_impute(x)
+  x = x[,apply(x,2,function(x) !within_check(y,x)), drop = FALSE] # 改掉group constant
   x = droplevels(x)
   # x = x[,apply(x,2,function(t) length(unique(t))!=1)] # 讲那些列一样的去掉，这一步主要是在防splitting
   result = tryCatch({

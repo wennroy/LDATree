@@ -9,12 +9,23 @@
 #' @export
 #'
 #' @examples
-LDAtree <- function(formula, data, prior = NULL){
+LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL){
+  # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
-  response = model.frame(formula, data)[,1]
+  response = model.frame(formula, data)[,1L]
   if(!is.factor(response)){
     response = as.factor(response)
   }
+
+  # 去掉y是NA的那些数据
+  idx_notNA = which(!is.na(response))
+  response = response[idx_notNA]
+  data = data[idx_notNA,]
+
+  if(is.null(min_nsize)){
+    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个
+  }
+
   # Design Matrix的方法很不对！因为这样卡方选变量根本跑不动了。
   # 我们需要找个办法找到所有涉及的变量。
   # dat = as.data.frame(model.matrix(formula, data)[,-1])
@@ -31,7 +42,6 @@ LDAtree <- function(formula, data, prior = NULL){
   queue = list(list(1:nrow(dat),col_idx,1L)) # Used to save the current intermediate nodes
   c_name = colnames(dat) # Used to denote the criteria
   node_saved = list() # Save the nodes for printing the tree
-  max_level = 4
 
   while(length(queue)!=0){ # 当还有节点没有被划分好
     node_tmp = generate_node(idx_r = queue[[1]][[1]],
@@ -71,7 +81,8 @@ LDAtree <- function(formula, data, prior = NULL){
 
     # 产生所需要的数据
     dat_tmp = data.frame(dat[node_tmp$idx_r,node_tmp$idx_c]) # Generate temporary data
-    idx_c_keep = apply(dat_tmp,2,function(x) length(unique(x)) > 1) # 开始治理那些所有值都一样的列
+    # 开始治理那些所有除了NA之外值都一样的列
+    idx_c_keep = apply(dat_tmp,2,function(x) length(unique(x[!is.na(x)])) > 1)
     node_tmp$idx_c = node_tmp$idx_c[idx_c_keep]
     node_tmp$covs = length(node_tmp$idx_c)
     dat_tmp = data.frame(dat[node_tmp$idx_r,node_tmp$idx_c]) # Generate temporary data
@@ -90,7 +101,7 @@ LDAtree <- function(formula, data, prior = NULL){
     # node_tmp$misclass = sum(predict_tmp$class != response_tmp)
     node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp, prior) # 这个信息会一直保留，因为最后需要展示在图上
 
-    # 对 maximum level 进行操作
+    # 判断是否到达了 maximum level，或者minimum node size，到达了便退出
     if(node_tmp$idx >= 2 ** (max_level-1)){
       ans = pred_LDA(dat_tmp, response_tmp, prior)
       node_tmp$pred_method = ans[[1]]
@@ -99,7 +110,7 @@ LDAtree <- function(formula, data, prior = NULL){
       next # 出口4
     }
 
-    if(node_tmp$misclass>0){ # If there is no perfect seperation, we choose one of the best seperator
+    if(node_tmp$misclass > 0){ # If there is no perfect seperation, we choose one of the best seperator
       # 能进这里来的，肯定是可以跑LDA function的
       # We should also record the covariates
       # 不管是什么类型的数据，我们都可以复用
@@ -114,32 +125,51 @@ LDAtree <- function(formula, data, prior = NULL){
       flag_class = class(dat_tmp[,c_split]) %in% c('numeric', 'integer')
       if(flag_class){
         threshold = split_noncat(dat_tmp[,c_split],response_tmp,dat_tmp, node_tmp$misclass, prior)
-        node_tmp$split_cri = threshold
-        if(is.null(threshold)){ # 如果没有提升
-          # 这里的代码，对于预测新数据很关键
-          # 暂时我们可以先允许早期停止，之后的话，加上了pruning之后，我们可以选择不停止
-          ans = pred_LDA(dat_tmp, response_tmp)
-          node_tmp$pred_method = ans[[1]]
-          node_tmp$lda_pred = ans[[2]]
-          node_saved[[node_tmp$idx]] = list(node_tmp)
-          next # 出口5
-        }else{
-          idx_left = which(dat_tmp[,c_split] <= threshold)
-          idx_right = setdiff(1:node_tmp$size,idx_left)
+        node_tmp$split_cri = threshold[1]
+        node_tmp$split_na_action = threshold[2]
+        # if(is.null(threshold)){ # 如果没有提升
+        #   # 这里的代码，对于预测新数据很关键
+        #   # 暂时我们可以先允许早期停止，之后的话，加上了pruning之后，我们可以选择不停止
+        #   ans = pred_LDA(dat_tmp, response_tmp)
+        #   node_tmp$pred_method = ans[[1]]
+        #   node_tmp$lda_pred = ans[[2]]
+        #   node_saved[[node_tmp$idx]] = list(node_tmp)
+        #   next # 出口5
+        # }else{
+        #   idx_left = which(dat_tmp[,c_split] <= threshold)
+        #   idx_right = setdiff(1:node_tmp$size,idx_left)
+        # }
+        idx_left = which(dat_tmp[,c_split] <= threshold[1])
+        # 如果有NA且被分到左面的话：
+        if(anyNA(dat_tmp[,c_split]) & node_tmp$split_na_action == 1){
+          idx_left = c(idx_left, which(is.na(dat_tmp[,c_split])))
         }
+        idx_right = setdiff(1:node_tmp$size,idx_left)
       }else{
         left_group = split_cat(dat_tmp[,c_split],response_tmp, dat_tmp, node_tmp$misclass, prior)
-        node_tmp$split_cri = left_group
-        idx_left = which(dat_tmp[,c_split] %in% left_group)
+        node_tmp$split_cri = left_group[[1]]
+        node_tmp$split_na_action = left_group[[2]]
+        idx_left = which(dat_tmp[,c_split] %in% left_group[[1]])
+        if(anyNA(dat_tmp[,c_split]) & node_tmp$split_na_action == 1){
+          idx_left = c(idx_left, which(is.na(dat_tmp[,c_split])))
+        }
         idx_right = setdiff(1:node_tmp$size,idx_left)
       }
-
       subnode_index_c = node_tmp$idx_c
       node_tmp$split_idx = node_tmp$idx_c[c_split]
-      if(length(idx_left) != 0 & length(idx_right) != 0){ # If both sides have data (ortherwise, this node should be a leaf node)
+
+      # If both sides have data (ortherwise, this node should be a leaf node)
+      # 下面这个看起来也是一个永远不会遇到的情况
+
+      if(length(idx_left) != 0 & length(idx_right) != 0){
         # Define the spliting rule for numeric variable
-        node_tmp$criteria = ifelse(flag_class, paste(c(c_name[node_tmp$split_idx],'\u2264',threshold),collapse = ' ')
-                                   ,paste(c(c_name[node_tmp$split_idx],'in {', paste(left_group,sep = ', '), '}'),collapse = ' '))
+        node_tmp$criteria = ifelse(flag_class, paste(c(c_name[node_tmp$split_idx],'\u2264',
+                                                       ifelse(is.na(node_tmp$split_na_action),'',
+                                                              ifelse(node_tmp$split_na_action,'**','++')),
+                                                       threshold[1]),collapse = ' ')
+                                   ,paste(c(c_name[node_tmp$split_idx],'in {', paste(left_group,sep = ', '),
+                                            ifelse(is.na(node_tmp$split_na_action),'',
+                                                   ifelse(node_tmp$split_na_action,'**','++')), '}'),collapse = ' '))
 
         node_tmp$left = 2 * node_tmp$idx # Decide the child index for the current node
         queue = append(queue,list(list(node_tmp$idx_r[idx_left],subnode_index_c, node_tmp$left)))

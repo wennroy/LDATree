@@ -11,6 +11,20 @@
 #'
 #' @examples
 split_cat <- function(x,y, datx, mis_curr, prior){
+  if(!anyNA(x)){
+    return(list(split_cat_helper(x,y, datx, mis_curr, prior),NA))
+  }else{
+    levels(x) = c(levels(x), 'MissingDalian')
+    x[is.na(x)] <- 'MissingDalian'
+    ans = split_cat_helper(x,y, datx, mis_curr, prior)
+    if('MissingDalian' %in% ans){
+      return(list(setdiff(ans,'MissingDalian'),1))
+    }else{
+      return(list(ans,0))
+    }
+  }
+}
+split_cat_helper <- function(x,y, datx, mis_curr, prior){
   # Following Loh's 09 paper Procedure A.1
 
   # x = factor(x) # 这个relevel很有必要，要不然会因为model.matrix有一列全是0从而导致constant
@@ -153,15 +167,38 @@ split_noncat <- function(x,y,datx, mis_curr, prior){
   cat('Split NonCat \n')
   threshold = sort(unique(x))
   cat('length of x', length(threshold),'\n')
-  ans = ifelse(length(threshold) <= 1000,
-               split_noncat_small(x,y,datx, mis_curr, prior),
-               split_noncat_large(x,y,datx, mis_curr, prior))
-  return(ans)
+  # ans = ifelse(length(threshold) <= 1000,
+  #              split_noncat_small(x,y,datx, mis_curr, prior),
+  #              split_noncat_large(x,y,datx, mis_curr, prior))
+  if(length(threshold) <= 1000){
+    if(!anyNA(x)){
+      return(c(split_noncat_small(x,y,datx, mis_curr, prior)[1], NA))
+    }else{ # NA 必分到左或者右，所以干脆变成最左和最右
+      x1 = x2 = x
+      x1[which(is.na(x1))] = min(x, na.rm = T) - 1
+      x2[which(is.na(x2))] = max(x, na.rm = T) + 1
+      res1 = split_noncat_small(x1,y,datx, mis_curr, prior)
+      res2 = split_noncat_small(x2,y,datx, mis_curr, prior)
+      return(ifelse(rep(res1[2] <= res2[2],2), c(res1[1],1), c(res2[1],0)))
+    }
+  }else{
+    if(!anyNA(x)){
+      return(c(split_noncat_large(x,y,datx, mis_curr, prior)[1], NA))
+    }else{ # NA 必分到左或者右，所以干脆变成最左和最右
+      x1 = x2 = x
+      x1[which(is.na(x1))] = min(x, na.rm = T) - 1
+      x2[which(is.na(x2))] = max(x, na.rm = T) + 1
+      res1 = split_noncat_large(x1,y,datx, mis_curr, prior)
+      res2 = split_noncat_large(x2,y,datx, mis_curr, prior)
+      return(ifelse(rep(res1[2] <= res2[2],2), c(res1[1],1), c(res2[1],0)))
+    }
+  }
+  # return(ans)
 }
 
 split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
   cat('Split NonCat Small \n')
-  threshold = sort(unique(x))
+  threshold = sort(unique(x)) # sort会自动干掉NA
   ans = rep(Inf,length(threshold))
   for(i in 1:(length(threshold)-1)){
     idx = which(x<= threshold[i])
@@ -183,7 +220,7 @@ split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太�
     ans[i] = mis_l + mis_r
   }
   idx_threshold = which(ans == min(ans))[1]
-  return(threshold[idx_threshold])
+  return(c(threshold[idx_threshold], min(ans)))
   # cat(ans,mis_curr,'\n')
   # print(c(ans[idx_threshold],mis_curr))
   # if(ans[idx_threshold] >= mis_curr){
@@ -193,7 +230,7 @@ split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太�
   # }
 }
 
-split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
+split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不够稳健
   cat('Split NonCat Large\n')
   threshold = sort(unique(x))
   left_pointer = 1
@@ -227,7 +264,7 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太�
   }
   idx_threshold = ans[which.min(ans[,2]),1]
   print(ans)
-  return(threshold[idx_threshold])
+  return(c(threshold[idx_threshold], min(ans[,2])))
   # if(ans[idx_threshold] >= mis_curr){
   #   return(NULL)
   # }else{
