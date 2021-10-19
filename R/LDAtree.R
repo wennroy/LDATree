@@ -23,7 +23,7 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
   data = data[idx_notNA,]
 
   if(is.null(min_nsize)){
-    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个
+    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个，尚未启用的功能
   }
 
   # Design Matrix的方法很不对！因为这样卡方选变量根本跑不动了。
@@ -166,8 +166,8 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
         node_tmp$criteria = ifelse(flag_class, paste(c(c_name[node_tmp$split_idx],'\u2264',
                                                        ifelse(is.na(node_tmp$split_na_action),'',
                                                               ifelse(node_tmp$split_na_action,'**','++')),
-                                                       threshold[1]),collapse = ' ')
-                                   ,paste(c(c_name[node_tmp$split_idx],'in {', paste(left_group,sep = ', '),
+                                                       threshold[1]),collapse = ' '),
+                                   paste(c(c_name[node_tmp$split_idx],'in {', paste(left_group[[1]],collapse = ', '),
                                             ifelse(is.na(node_tmp$split_na_action),'',
                                                    ifelse(node_tmp$split_na_action,'**','++')), '}'),collapse = ' '))
 

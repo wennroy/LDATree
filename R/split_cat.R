@@ -147,11 +147,12 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
     fit = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
     eigen_keep = which(round(fit$values,8) > 0) # 保留正值
     X_dummy = dummy_matrix %*% fit$vectors[,eigen_keep] # Projection
+    X_dummy = X_dummy[,apply(X_dummy,2,function(x_x) !within_check(y,x_x)), drop = FALSE] # 改掉group constant
     new_data = data.frame(y, X_dummy)
     fit_lda = lda(y~., data = new_data, prior = prior) # 这个LDA需要后面的scaling，所以先不变robust了
     X_num = X_dummy %*% fit_lda$scaling[,1] # Project 到 LD1 上面去
     reexp = unique(data.frame(x,X_num)) # 找到x和X_num的对照表
-    threshold = split_noncat(X_num,y,datx,Inf)
+    threshold = split_noncat(X_num,y,datx,Inf, prior)
     return(reexp$x[which(reexp$X_num <= threshold)])
     }
 

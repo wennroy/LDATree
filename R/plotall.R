@@ -17,7 +17,7 @@ plotall <- function(fit){
   idx_curr = 1
   node_count = sum(sapply(node_saved,function(x) !is.null(x))) - 1 # 减去一个 response 的 count
   edges <- data.frame(from = numeric(node_count), to = numeric(node_count))
-  id_plot = level_plot = numeric(node_count)
+  size_plot = id_plot = level_plot = numeric(node_count)
   label_plot = group_plot = character(node_count)
 
   while(length(stack) > 0){
@@ -27,6 +27,7 @@ plotall <- function(fit){
     level_plot[idx_curr] = floor(log(id_tmp$idx)/log(2) + 1)
     edges[idx_curr,] = c(floor(id_tmp$idx/2),id_tmp$idx)
     if(!is.na(id_tmp$left)){ # 如果是中间节点，要提供的信息：划分标准，各类占比，总数
+      size_plot[idx_curr] = 2 # 节点大小
       text_zhanbi = paste(round(id_tmp$portion / id_tmp$size,2), collapse = ' / ')
       node_idx_plot = paste('Node',id_tmp$idx)
       label_plot[idx_curr] = paste(id_tmp$criteria, text_zhanbi,
@@ -34,6 +35,7 @@ plotall <- function(fit){
       stack = c(stack,id_tmp$left,id_tmp$right)
       group_plot[idx_curr] = NA # 中间节点不分组不涂色
     }else{ # 如果是叶子节点，要提供的信息：预测类别，各类具体，正确/总数
+      size_plot[idx_curr] = log(id_tmp$size)
       group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion * fit$prior)]
       text_zhanbi = paste(id_tmp$portion, collapse = ' / ')
       node_idx_plot = paste('Node',id_tmp$idx)
@@ -47,6 +49,7 @@ plotall <- function(fit){
   edges = edges[-1,]
   nodes <- data.frame(id = id_plot,
                       title = info_panel(fit), # Show when you click
+                      value = size_plot,
                       level = level_plot,
                       label = label_plot,
                       group = group_plot,

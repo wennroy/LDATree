@@ -73,11 +73,28 @@ var_select_all <- function(x, y, Nt, Jt){
 }
 
 # 这个函数是为了防止LDA因为constant in groups 而报错
-within_check <- function(x,y){
-  overall_list = unique(x)
+within_check <- function(y,x){
+  # 进来的数据应该没有NA
+  # 返回TRUE，就代表着这个数据within group constant
+  if(class(x) %in% c('numeric', 'integer')){
+    x = round(x,8) # 有些e-16的变化都被R察觉到了，但是LDA察觉不到
+    return(within_check_helper(y,x))
+  }else{
+    if(length(unique(x) == 1)){
+      return(TRUE)
+    }
+    mmm = model.matrix(y~x)[,-1,drop = FALSE] # LDA好像不关心第一列
+    res = apply(mmm,2,function(x_x) within_check_helper(y,x_x))
+    return(any(res))
+  }
+}
+
+
+within_check_helper <- function(y,x){
+  overall_list = unique(y)
   for(i in 1:length(overall_list)){
-    idx_tmp = which(x == overall_list[i])
-    if(length(unique(y[idx_tmp])) > 1){
+    idx_tmp = which(y == overall_list[i])
+    if(length(unique(x[idx_tmp])) > 1){
       return(FALSE)
     }
   }

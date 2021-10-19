@@ -34,15 +34,26 @@ plotsingle <- function(fit, idx){
   dat_combined = cbind(fit$dat[idx_r, idx_c],response_tmp) %>%
     droplevels()
   colnames(dat_combined)[node_tmp$covs+1] = fit$response_name
+  # 下面这一部分复制了split_cat
+  dummy_matrix = model.matrix(fit$formula, data = dat_combined)
+  fit_eigen = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
+  eigen_keep = which(round(fit_eigen$values,8) > 0) # 保留正值
+  X_dummy = dummy_matrix %*% fit_eigen$vectors[,eigen_keep] # Projection
+  X_dummy = X_dummy[,apply(X_dummy,2,function(x_x) !within_check(response_tmp,x_x)), drop = FALSE] # 改掉group constant
 
   # 删除那些within group constant
-  idx_same = apply(dat_combined,2,function(x) within_check(response_tmp,x))[-(node_tmp$covs+1)]
-  # idx_same = apply(dat_combined,2,function(x) length(unique(x)) == 1)
-  if(any(idx_same)){
-    dat_combined = dat_combined[,-which(idx_same)] # 删除那些x只有一个值的变量
-  }
-  fit_new = MASS::lda(fit$formula, data = dat_combined) # fit好了的LDA模型
+  # idx_same = apply(dat_combined,2,function(x) within_check(response_tmp,x))[-(node_tmp$covs+1)]
+  # # idx_same = apply(dat_combined,2,function(x) length(unique(x)) == 1)
+  # print(idx_same)
+  # if(any(idx_same)){
+  #   dat_combined = dat_combined[,!idx_same] # 删除那些x只有一个值的变量
+  # }
+  dat_combined = data.frame(X_dummy,response_tmp) %>%
+    droplevels()
+  colnames(dat_combined)[ncol(dat_combined)] = fit$response_name
 
+  fit_new = MASS::lda(fit$formula, data = dat_combined) # fit好了的LDA模型
+  print(1)
   # 将LD1 & LD2保留，顺便将Y变成predicted，这样方便contour画出图
   # 一本书的作者说， 边界不是理论出来的而是带数试出来的，所以可能会弯弯曲曲
 
@@ -70,23 +81,33 @@ plotsingle <- function(fit, idx){
   newdat <- expand.grid(list(LD1=ld1,LD2=ld2)) # 拼出了一个300*300的网格数据
   preds <-predict(fit2,newdata=newdat)
 
-  df <- data.frame(x=newdat$LD1, y=newdat$LD2, class = preds$class)
-  df$classnum <- as.numeric(df$class)
+  df <- data.frame(x=newdat$LD1, y=newdat$LD2, pred = preds$class)
+  df$classnum <- as.numeric(df$pred)
 
   # 这个函数很强，输入数字，就可以告诉你如果是前K组，那么ggplot会用什么颜色
-  # colorfun <- function(n,l=65,c=100){
-  #   hues = seq(15, 375, length=n+1)
-  #   return(hcl(h=hues, l=l, c=c)[1:n])
-  # } # default ggplot2 colours
-  # colors <- colorfun(4)
-  p = ggplot(datPred, aes(x=LD1, y=LD2)) +
-    geom_raster(data=df, aes(x=x, y=y, fill = factor(class)),alpha=0.2, show.legend=FALSE)+ # 背景填色
+  colorfun <- function(n,l=65,c=100){
+    hues = seq(15, 375, length=n+1)
+    return(hcl(h=hues, l=l, c=c)[1:n])
+  } # default ggplot2 colours
+  color_trans = data.frame(pred = levels(response_tmp),
+                      color_used = colorfun(length(levels(response_tmp))),
+                      pch_used = 1:length(levels(response_tmp)))
+  df = left_join(df,color_trans,by = 'pred', copy = TRUE)
+  df$pred = factor(df$pred, levels = levels(datPred$pred))
+  datPred = left_join(datPred,color_trans,by = 'pred')
+  datPred$pred = factor(datPred$pred, levels = levels(df$pred))
+  ggplot(datPred, aes(x=LD1, y=LD2)) +
+    geom_raster(data=df, aes(x=x, y=y, fill = pred), alpha=0.2, show.legend=FALSE)+ # 背景填色
     geom_contour(data=df, aes(x=x, y=y, z=classnum), colour="black", alpha=0.5, size = 0.1)+ # 划出分割线
-    geom_point(data = datPred, size = 3, aes(pch = pred,colour=pred), alpha = 0.7)+
+    geom_point(data = datPred, size = 3, aes(color = pred), alpha = 0.7)+
     theme_bw()+
     scale_x_continuous(expand=c(0,0))+ # 为了使x,y的边界不会有一段突兀的空白
-    scale_y_continuous(expand=c(0,0))+
-    scale_color_discrete(name=fit$response_name) +
-    scale_shape_discrete(name=fit$response_name)
+    scale_y_continuous(expand=c(0,0))
+    # scale_shape_manual(values = color_trans$pch_used)+
+    scale_fill_brewer(palette = 'Spectral')+
+    # scale_fill_manual(values = color_trans$color_used)+
+    scale_color_brewer(palette = 'Spectral')
+    # scale_color_discrete(name=fit$response_name) +
+    # scale_shape_discrete(name=fit$response_name)
   return(p)
 }
