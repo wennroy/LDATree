@@ -4,7 +4,7 @@
 \alias{split_cat}
 \title{Splitting in the LDAtree}
 \usage{
-split_cat(x, y, mis_curr)
+split_cat(x, y, datx, mis_curr, prior)
 }
 \arguments{
 \item{mis_curr}{}

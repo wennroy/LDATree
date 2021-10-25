@@ -4,7 +4,7 @@
 \alias{get_error_LDA}
 \title{LDA Related Functions}
 \usage{
-get_error_LDA(x, y)
+get_error_LDA(x, y, prior)
 }
 \arguments{
 \item{y}{}

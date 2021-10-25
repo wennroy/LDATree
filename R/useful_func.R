@@ -119,6 +119,37 @@ getmode <- function(v) {
   return(uniqv[which.max(tabulate(match(v, uniqv)))])
 }
 
+best_friend <- function(x_new, x_original){ # 找到最像的朋友们，按相似度从高到底排序
+  # check if they have the same dimension
+  # 这里以后补充一个get_error function for robustness
+  # 还要加一个new level的处理方法
+
+  idx_keep = which(!is.na(x_new))
+  x_new_tmp = x_new[idx_keep]
+  x_original_tmp = x_original[idx_keep]
+  # 删去原数据中NA的那些行
+  idx_notNA = which(apply(x_original_tmp,1, function(x) !any(is.na(x))))
+  x_original_tmp = x_original_tmp[idx_notNA,]
+  # data check
+  # 马氏距离：对于factor，变成了one-hot-encoding之后，cov矩阵不可逆
+  # 以后采用标准化之后的欧氏距离
+  # 为了防止dummyX使得biased towards factor，我们先变一下, binary
+  x_combined = rbind(x_new_tmp,x_original_tmp)
+  for(i in 1:ncol(x_combined)){
+    if(!class(x_combined[,i]) %in% c('numeric', 'integer')){
+      x_combined[,i] = (x_combined[,i] == x_combined[1,i]) + 0
+    }
+  }
+  x_combined = scale(x_combined,center = TRUE,scale = TRUE)
+  dist_tmp = apply(x_combined,1,function(x) dist(rbind(x_combined[1,],x)))
+  return(idx_notNA[order(dist_tmp[-1])]) # 返回一个距离的排序
+}
+
+
+
+
+
+
 
 
 
