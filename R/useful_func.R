@@ -92,9 +92,9 @@ within_check <- function(y,x){
 
 within_check_helper <- function(y,x){
   overall_list = unique(y)
-  for(i in 1:length(overall_list)){
+  for(i in 1:length(overall_list)){ #对于每一个y下面的subgroup
     idx_tmp = which(y == overall_list[i])
-    if(length(unique(x[idx_tmp])) > 1){
+    if(length(unique(x[idx_tmp])) > 1){ # 如果X只要有一个非constant，就能估计方差
       return(FALSE)
     }
   }

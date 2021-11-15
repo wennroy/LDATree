@@ -55,13 +55,15 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
         x_l = datx[row_tmp,]
         # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
         # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
-        mis_l = get_error_LDA(x_l, y_l, prior)
+        # mis_l = get_error_LDA(x_l, y_l, prior)
+        mis_l = pred_LDA(x_l, y_l, prior)[[3]]
       }
       if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
         x_r = datx[-row_tmp,]
         # fit = quietly(total_LDA)(x_r, y_r)$result
         # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
-        mis_r = get_error_LDA(x_r, y_r, prior)
+        # mis_r = get_error_LDA(x_r, y_r, prior)
+        mis_r = pred_LDA(x_r, y_r, prior)[[3]]
       }
       ans[i] = mis_l + mis_r
     }
@@ -84,13 +86,15 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
         x_l = datx[row_tmp,]
         # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
         # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
-        mis_l = get_error_LDA(x_l, y_l, prior)
+        # mis_l = get_error_LDA(x_l, y_l, prior)
+        mis_l = pred_LDA(x_l, y_l, prior)[[3]]
       }
       if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
         x_r = datx[-row_tmp,]
         # fit = quietly(total_LDA)(x_r, y_r)$result
         # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
-        mis_r = get_error_LDA(x_r, y_r, prior)
+        # mis_r = get_error_LDA(x_r, y_r, prior)
+        mis_r = pred_LDA(x_r, y_r, prior)[[3]]
       }
       ans[i] = mis_l + mis_r
     }
@@ -127,13 +131,15 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
         x_l = datx[row_tmp,]
         # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
         # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
-        mis_l = get_error_LDA(x_l, y_l, prior)
+        # mis_l = get_error_LDA(x_l, y_l, prior)
+        mis_l = pred_LDA(x_l, y_l, prior)[[3]]
       }
       if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
         x_r = datx[-row_tmp,]
         # fit = quietly(total_LDA)(x_r, y_r)$result
         # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
-        mis_r = get_error_LDA(x_r, y_r, prior)
+        # mis_r = get_error_LDA(x_r, y_r, prior)
+        mis_r = pred_LDA(x_r, y_r, prior)[[3]]
       }
       ans[i] = mis_l + mis_r
     }
@@ -210,13 +216,15 @@ split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太�
       x_l = datx[idx,]
       # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
       # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
-      mis_l = get_error_LDA(x_l, y_l, prior)
+      # mis_l = get_error_LDA(x_l, y_l, prior)
+      mis_l = pred_LDA(x_l, y_l, prior)[[3]]
     }
     if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
       x_r = datx[-idx,]
       # fit = quietly(total_LDA)(x_r, y_r)$result
       # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
-      mis_r = get_error_LDA(x_r, y_r, prior)
+      # mis_r = get_error_LDA(x_r, y_r, prior)
+      mis_r = pred_LDA(x_r, y_r, prior)[[3]]
     }
     ans[i] = mis_l + mis_r
   }
@@ -248,13 +256,15 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
       x_l = datx[idx,]
       # fit = quietly(total_LDA)(x_l, y_l)$result # 用子节点的LDA结果作为划分的依据
       # mis_l = sum(predict(fit,cbind(x_l,y_l))$class != y_l)
-      mis_l = get_error_LDA(x_l, y_l, prior)
+      # mis_l = get_error_LDA(x_l, y_l, prior)
+      mis_l = pred_LDA(x_l, y_l, prior)[[3]]
     }
     if(length(unique(y_r))!=1){ # 我们采用小于等于的准则
       x_r = datx[-idx,]
       # fit = quietly(total_LDA)(x_r, y_r)$result
       # mis_r = sum(predict(fit,cbind(x_r,y_r))$class != y_r)
-      mis_r = get_error_LDA(x_r, y_r, prior)
+      # mis_r = get_error_LDA(x_r, y_r, prior)
+      mis_r = pred_LDA(x_r, y_r, prior)[[3]]
     }
     ans = rbind(ans, c(current_index, mis_l + mis_r))
     if(mis_l >= mis_r){

@@ -12,71 +12,81 @@
 LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
+
+
+# 数据预处理 -------------------------------------------------------------------
+
+
+  ### 将response变成factor
   response = model.frame(formula, data)[,1L]
   if(!is.factor(response)){
     response = as.factor(response)
   }
+  ###
 
-  # 去掉y是NA的那些数据
+  ### 去掉y是NA的那些数据
   idx_notNA = which(!is.na(response))
   response = response[idx_notNA]
   data = data[idx_notNA,]
+  ###
 
+  ### 设定每个节点的最小数据量
   if(is.null(min_nsize)){
-    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个，尚未启用的功能
+    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个
   }
+  ###
 
-  # Design Matrix的方法很不对！因为这样卡方选变量根本跑不动了。
-  # 我们需要找个办法找到所有涉及的变量。
-  # dat = as.data.frame(model.matrix(formula, data)[,-1])
-  dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
-  col_idx = 1:ncol(dat)
-
-  # Put prior in somewhere
+  ### 设定Prior
   if(is.null(prior)){
     prior = tabulate(response)/nrow(data) # 如果没给prior，用estimated prior
   }
+  ###
 
-  # 下面就是陈年老code
+  ### 找到所有要使用的X，合在一起变成dat
+  dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
+  col_idx = 1:ncol(dat)
+  ###
+
+
+
+
+# Model 部分 ----------------------------------------------------------------
+
 
   queue = list(list(1:nrow(dat),col_idx,1L)) # Used to save the current intermediate nodes
   c_name = colnames(dat) # Used to denote the criteria
   node_saved = list() # Save the nodes for printing the tree
 
   while(length(queue)!=0){ # 当还有节点没有被划分好
+
+    ### 拿到当前节点的信息
     node_tmp = generate_node(idx_r = queue[[1]][[1]],
                              idx_c = queue[[1]][[2]],
                              idx = queue[[1]][[3]]) # Get the current subset index
     cat('The current node index is', node_tmp$idx, '\n')
     queue = queue[-1] # Remove the idx from the waiting list
-
-    if(node_tmp$size == 0){ # If there is no data in this current node
-      # 我现在心生疑惑，感觉这个情况永远不会遇到。
-      # numeric的划分应该不会遇到，只可能是LDA分的时候系数都是一个符号？
-      # 如果真的有机会跑到这里我再优化吧
-      node_tmp$misclass = 0
-      node_saved[[node_tmp$idx]] = list(node_tmp)
-      next # 出口1
-    }
-
     response_tmp = response[node_tmp$idx_r] # get the subset of the response
+    ###
 
-    ## count开始，数清楚每一类有多少个
-    node_tmp$portion = numeric(length(levels(response)))
-    for(i in 1:length(node_tmp$portion)){
-      node_tmp$portion[i] = sum(response_tmp == levels(response)[i])
-    }
-    ## count结束了
+    ### 先拿到一个response的大致分布
+    # node_tmp$portion = numeric(length(levels(response)))
+    # for(i in 1:length(node_tmp$portion)){
+    #   node_tmp$portion[i] = sum(response_tmp == levels(response)[i])
+    # }
+    node_tmp$portion = as.numeric(table(response_tmp))
+    ###
 
-
+    ### 出口1: 无X，或者所有Y都相同
     Jt = sum(node_tmp$portion != 0) # number of class in node t 当前节点有几类
-    if(Jt == 1 || node_tmp$covs == 0){ # If all of the data belongs to one class, or there is no covariates left
+    if(Jt == 1 | node_tmp$covs == 0){ # If all of the data belongs to one class, or there is no covariates left
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 既然分不下去了，那就只能预测众数
       node_tmp$pred_method = 'mode'
       node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
+      # 这里要改成prior版本的，带misclassification cost
       node_saved[[node_tmp$idx]] = list(node_tmp)
-      next # 出口2
+      next # 出口1
     }
+    ###
 
 
     # 产生所需要的数据
@@ -93,21 +103,23 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
       node_tmp$pred_method = 'mode'
       node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
       node_saved[[node_tmp$idx]] = list(node_tmp)
-      next # 出口3
+      next # 出口2
     }
 
     # fit <- total_LDA(dat_tmp, response_tmp)
     # predict_tmp = predict(fit,newdata = dat_tmp) # Predict using the fitted model
     # node_tmp$misclass = sum(predict_tmp$class != response_tmp)
-    node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp, prior) # 这个信息会一直保留，因为最后需要展示在图上
 
-    # 判断是否到达了 maximum level，或者minimum node size，到达了便退出
-    if(node_tmp$idx >= 2 ** (max_level-1)){
+    # node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp, prior) # 这个信息会一直保留，因为最后需要展示在图上
+    node_tmp$misclass = pred_LDA(dat_tmp, response_tmp, prior)[[3]] # 这个信息会一直保留，因为最后需要展示在图上
+
+    # 判断是否到达了 maximum level，和minimum node size，到达了便退出
+    if(node_tmp$idx >= 2 ** (max_level-1) | node_tmp$size < min_nsize){
       ans = pred_LDA(dat_tmp, response_tmp, prior)
       node_tmp$pred_method = ans[[1]]
       node_tmp$lda_pred = ans[[2]]
       node_saved[[node_tmp$idx]] = list(node_tmp)
-      next # 出口4
+      next # 出口3
     }
 
     if(node_tmp$misclass > 0){ # If there is no perfect seperation, we choose one of the best seperator
@@ -134,7 +146,7 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
         #   node_tmp$pred_method = ans[[1]]
         #   node_tmp$lda_pred = ans[[2]]
         #   node_saved[[node_tmp$idx]] = list(node_tmp)
-        #   next # 出口5
+        #   next # 出口
         # }else{
         #   idx_left = which(dat_tmp[,c_split] <= threshold)
         #   idx_right = setdiff(1:node_tmp$size,idx_left)
@@ -177,12 +189,22 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
         queue = append(queue,list(list(node_tmp$idx_r[idx_right],subnode_index_c, node_tmp$right)))
       }
     }
-    node_saved[[node_tmp$idx]] = list(node_tmp) # 出口6
+    node_saved[[node_tmp$idx]] = list(node_tmp) # 出口4
   }
+
+
+# Pruning -----------------------------------------------------------------
+
+
+# Evaluation --------------------------------------------------------------
+
+
+# 结果输出部分 ------------------------------------------------------------------
+
   res = list()
   res$formula = formula
-  res$treenode = node_saved
-  res$dat = dat
+  res$treenode = node_saved # 所有节点信息
+  res$dat = dat # 存储源数据
   res$prior = prior
   res$response = response # 为了后面的画图
   res$response_name = colnames(model.frame(formula, data))[1]
