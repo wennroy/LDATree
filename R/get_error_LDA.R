@@ -30,8 +30,8 @@ get_error_LDA <- function(x,y,prior){
     # flag_lda <<- FALSE
 
     ### 考虑prior进去，来算众数
-    tab_tmp = tabulate(y) * prior
-    mis_class_mode = sum(tabulate(y)[-which.max(tab_tmp)])
+    tab_tmp = as.numeric(table(y)) * prior
+    mis_class_mode = sum(as.numeric(table(y))[-which.max(tab_tmp)])
     ###
 
     ### 开始复杂的函数
@@ -92,24 +92,24 @@ pred_LDA <- function(x,y,prior){
 
   ### 把x变成一个矩阵
   if(is.null(dim(x))){
-    x = matrix(x,,1)
+    x = as.data.frame(matrix(x,,1))
   }
   ###
 
   ### 考虑prior进去，来算众数
   # m = 'mode'
-  tab_tmp = tabulate(y) * prior
+  tab_tmp = as.numeric(table(y)) * prior
   ans_mode = levels(y)[which.max(tab_tmp)]
   mis_class_mode = sum(y != ans_mode) # misclass = 1的简单情况
   ###
 
   x = naive_impute(x) # impute NAs
   # x = x[,apply(x,2,function(x) !within_check(y,x)), drop = FALSE] # 改掉group constant
-  # x = droplevels(x)
+  x = droplevels(x) # 不用的level去掉
+  dat_lda = as.data.frame(cbind(x,y))
   result = tryCatch({
-    fit <<- MASS::lda(y~., data = dat_lda, prior = prior) # fit an LDA model in the node
-    ans = fit
-    return(list('lda',ans,sum(predict(fit,dat_lda)$class != y)))
+    ans <<- MASS::lda(y~., data = dat_lda, prior = prior) # fit an LDA model in the node
+    return(list('lda',ans,sum(predict(ans,dat_lda)$class != y)))
   }, error = function(e) { # variable being constant within groups，应该只有这一种错误
 #
 #     ### 开始复杂的函数

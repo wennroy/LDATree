@@ -8,15 +8,34 @@
 #'
 #' @examples
 predict_LT <- function(fit, x_new){
-  # 假设test的变量位置和原数据一模一样，老罗也是这么做的
+  # 别假设了，先把test变量的位置变成和原数据一模一样
+  cname_save = fit$cnames
+  if(is.null(dim(x_new))){ # 如果传进来的东西是个vector
+    x_new = data.frame(matrix(x_new,1))
+  }
+
+  # 开始对名字
+  matching_position = match(cname_save, colnames(x_new))
+  if(anyNA(matching_position)){
+    if(dim(x_new)[2] == length(cname_save)){
+      colnames(x_new) = cname_save # 假设test的变量位置和原数据一模一样，老罗也是这么做的
+    }else{
+      print('The new data is missing columns')
+      return()
+    }
+  }else{
+    x_new = x_new[,matching_position]
+  }
+
+  # 主程序正式启动
   tmp_node = 1
   # 先找到一个最像自己的伙伴, Lazy启动
   friend_list = NULL
   ### 一个距离算法
   while(1){
-    print(tmp_node)
+    # print(tmp_node)
     node_tmp = fit$treenode[[tmp_node]][[1]]
-    if(!is.na(node_tmp$pred_method)){
+    if(is.null(node_tmp$leaves)){
       # 到了叶子结点
       if(node_tmp$pred_method == 'mode'){
         # 用众数估计

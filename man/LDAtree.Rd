@@ -4,7 +4,7 @@
 \alias{LDAtree}
 \title{Main function in LDATree}
 \usage{
-LDAtree(formula, data, prior = NULL, max_level = 5, min_nsize = NULL)
+LDAtree(formula, data, prior = NULL, max_level = 10, min_nsize = NULL)
 }
 \arguments{
 \item{formula}{an object of class 'formula'}

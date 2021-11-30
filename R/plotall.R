@@ -29,7 +29,7 @@ plotall <- function(fit){
     if(!is.na(id_tmp$left)){ # 如果是中间节点，要提供的信息：划分标准，各类占比，总数
       size_plot[idx_curr] = 2 # 节点大小
       text_zhanbi = paste(round(id_tmp$portion / id_tmp$size,2), collapse = ' / ')
-      node_idx_plot = paste('Node',id_tmp$idx)
+      node_idx_plot = paste('Node',id_tmp$idx,id_tmp$alpha) # 加一个alpha用来debug
       label_plot[idx_curr] = paste(id_tmp$criteria, text_zhanbi,
                                    id_tmp$size, node_idx_plot, sep = ' \n ')
       stack = c(stack,id_tmp$left,id_tmp$right)

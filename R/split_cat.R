@@ -35,7 +35,7 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
   ##### 第一种情况 J = 2 #####
 
   if(length(unique(y)) == 2){ # J = 2, y只有两类
-    cat('Split Cat Situation:1 \n')
+    # cat('Split Cat Situation:1 \n')
     y_class1 = (y == levels(y)[1])
     dat = data.frame(x,y_class1)
     proportion_table = dat %>%
@@ -71,7 +71,7 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
     return(proportion_table$x[1:idx_threshold])
   }else if(length(unique(x)) <= 11){
     ##### 第二种情况 n <= 11 #####
-    cat('Split Cat Situation:2 \n')
+    # cat('Split Cat Situation:2 \n')
     level_record = unique(x)
     ans = rep(Inf,2^(length(level_record)-1)-1) # 记录下错误的个数
     row_record = lapply(level_record, function(t) which(x == t)) # 记录下每个level对应的行数
@@ -102,7 +102,7 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
     return(level_record[which(as.integer(intToBits(idx_threshold))[1:(length(level_record)-1)]==1)])
   }else if((length(unique(x)) > 11) & (length(unique(y)) <= 11)){
     ##### 第三种情况 J <= 11 and n > 20 #####
-    cat('Split Cat Situation:3 \n')
+    # cat('Split Cat Situation:3 \n')
     # Generate X'
     getmode <- function(v){
       uniqv <- unique(v)
@@ -148,7 +148,7 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
     return(left_join(data.frame(x_prime = result_list),transfer_matrix,by = 'x_prime')[,2])
   }else{
     ##### 第四种情况 Else #####
-    cat('Split Cat Situation:4 \n')
+    # cat('Split Cat Situation:4 \n')
     dummy_matrix = model.matrix(y~x-1) # Get the dummy matrix
     fit = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
     eigen_keep = which(round(fit$values,8) > 0) # 保留正值
@@ -171,9 +171,9 @@ split_cat_helper <- function(x,y, datx, mis_curr, prior){
 # Split_noncat ------------------------------------------------------------
 
 split_noncat <- function(x,y,datx, mis_curr, prior){
-  cat('Split NonCat \n')
+  # cat('Split NonCat \n')
   threshold = sort(unique(x))
-  cat('length of x', length(threshold),'\n')
+  # cat('length of x', length(threshold),'\n')
   # ans = ifelse(length(threshold) <= 1000,
   #              split_noncat_small(x,y,datx, mis_curr, prior),
   #              split_noncat_large(x,y,datx, mis_curr, prior))
@@ -204,7 +204,7 @@ split_noncat <- function(x,y,datx, mis_curr, prior){
 }
 
 split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太太太太慢
-  cat('Split NonCat Small \n')
+  # cat('Split NonCat Small \n')
   threshold = sort(unique(x)) # sort会自动干掉NA
   ans = rep(Inf,length(threshold))
   for(i in 1:(length(threshold)-1)){
@@ -240,13 +240,13 @@ split_noncat_small <- function(x,y,datx, mis_curr, prior){ # 这一步跑得太�
 }
 
 split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不够稳健
-  cat('Split NonCat Large\n')
+  # cat('Split NonCat Large\n')
   threshold = sort(unique(x))
   left_pointer = 1
   right_pointer = length(threshold)
   ans = matrix(c(0,Inf),1,2)
   while(right_pointer >= left_pointer){
-    cat(left_pointer, right_pointer, '\n')
+    # cat(left_pointer, right_pointer, '\n')
     current_index = (left_pointer + right_pointer) %/% 2
     idx = which(x<= threshold[current_index])
     y_l = y[idx]
@@ -274,7 +274,7 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
     }
   }
   idx_threshold = ans[which.min(ans[,2]),1]
-  print(ans)
+  # print(ans)
   return(c(threshold[idx_threshold], min(ans[,2])))
   # if(ans[idx_threshold] >= mis_curr){
   #   return(NULL)

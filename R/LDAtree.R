@@ -9,7 +9,7 @@
 #' @export
 #'
 #' @examples
-LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL){
+LDAtree <- function(formula, data, prior = NULL, max_level = 10, min_nsize = NULL){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
 
@@ -44,15 +44,73 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
 
   ### 找到所有要使用的X，合在一起变成dat
   dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
-  col_idx = 1:ncol(dat)
   ###
 
 
-
-
 # Model 部分 ----------------------------------------------------------------
+  fit = tree_growing(response, dat, prior, max_level, min_nsize)
+
+# Pruning -----------------------------------------------------------------
+
+  T_saved = fit$treenode
+  fit = traverse(fit) # Get the alpha
+  # Divide the data into ten parts
+  cv_number = 5
+  set.seed(dim(dat)[1]*dim(dat)[2]) # Fixed seed
+  idx_CV = sample(c(rep(1:(cv_number-1),each = dim(dat)[1]%/%cv_number),
+                    numeric(dim(dat)[1] - (cv_number-1)* (dim(dat)[1]%/%cv_number))+cv_number))
+  cv_fit = vector("list", cv_number)
+  for(i in 1:cv_number){
+    r_tmp = which(idx_CV == i) # 找出第i组的行index
+    cv_fit[[i]] = tree_growing(response[-r_tmp], dat[-r_tmp,], prior, max_level, min_nsize) # 找出母树
+    cv_fit[[i]] = traverse(cv_fit[[i]]) # update alpha
+  }
+  # plotall(cv_fit[[2]])
+  CV_table = data.frame(Tree = numeric(0),
+                        Tnodes = numeric(0),
+                        Mean_MSE = numeric(0),
+                        SE_Mean = numeric(0),
+                        alpha = numeric(0))
+  CV_table[dim(CV_table)[1]+1,] = c(dim(CV_table)[1]+1,sum(!sapply(fit$treenode,is.null)),
+                                    get_mean_se(cv_fit,idx_CV,response,dat),-1)
+  while(sum(!sapply(fit$treenode,is.null)) > 1){ # 除非是切到根结点了
+    cat('The current number of node is', sum(!sapply(fit$treenode,is.null)), '\n')
+    # 找到切割的alpha
+    alpha_tmp = get_cut_alpha(fit)
+    fit = cut_alpha(fit,alpha_tmp)
+    fit = traverse(fit)
+    for(i in 1:cv_number){
+      cv_fit[[i]] = cut_alpha(cv_fit[[i]],alpha_tmp)
+      cv_fit[[i]] = traverse(cv_fit[[i]])
+    }
+    # plotall(cv_fit[[3]])
+    CV_table[dim(CV_table)[1]+1,] = c(dim(CV_table)[1]+1,sum(!sapply(fit$treenode,is.null)),
+                                      get_mean_se(cv_fit,idx_CV,response,dat,cv_number),alpha_tmp)
+  }
+# Evaluation --------------------------------------------------------------
+  CV_table = CV_table[dim(CV_table)[1]:1,] # 反向排序，因为which.min会选择最上面的，
+  # 但我们需要最小的树
+  k_se = 1
+  idx_star = which.min(CV_table$Mean_MSE)
+  star_threshold = CV_table$Mean_MSE[idx_star] + k_se * CV_table$SE_Mean[idx_star]
+  alpha_final = CV_table$alpha[which(CV_table$Mean_MSE<=star_threshold)[1]]
+  fit$treenode = T_saved
+  fit = traverse(fit) # Get the alpha
+  fit = cut_alpha(fit,alpha_final)
+  fit$response_name = colnames(model.frame(formula, data))[1]
+  fit$CV_table = CV_table[dim(CV_table)[1]:1,]
+  return(fit)
+}
 
 
+
+# Tree Growing Function ---------------------------------------------------
+
+
+
+tree_growing <- function(response, dat, prior, max_level, min_nsize){
+  # Model 部分 ----------------------------------------------------------------
+  col_idx = 1:ncol(dat)
   queue = list(list(1:nrow(dat),col_idx,1L)) # Used to save the current intermediate nodes
   c_name = colnames(dat) # Used to denote the criteria
   node_saved = list() # Save the nodes for printing the tree
@@ -111,13 +169,16 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
     # node_tmp$misclass = sum(predict_tmp$class != response_tmp)
 
     # node_tmp$misclass = get_error_LDA(dat_tmp, response_tmp, prior) # 这个信息会一直保留，因为最后需要展示在图上
-    node_tmp$misclass = pred_LDA(dat_tmp, response_tmp, prior)[[3]] # 这个信息会一直保留，因为最后需要展示在图上
+    ans = pred_LDA(dat_tmp, response_tmp, prior)
+    node_tmp$misclass = ans[[3]] # 这个信息会一直保留，因为最后需要展示在图上
+    node_tmp$pred_method = ans[[1]]
+    node_tmp$lda_pred = ans[[2]]
 
     # 判断是否到达了 maximum level，和minimum node size，到达了便退出
     if(node_tmp$idx >= 2 ** (max_level-1) | node_tmp$size < min_nsize){
-      ans = pred_LDA(dat_tmp, response_tmp, prior)
-      node_tmp$pred_method = ans[[1]]
-      node_tmp$lda_pred = ans[[2]]
+      # ans = pred_LDA(dat_tmp, response_tmp, prior)
+      # node_tmp$pred_method = ans[[1]]
+      # node_tmp$lda_pred = ans[[2]]
       node_saved[[node_tmp$idx]] = list(node_tmp)
       next # 出口3
     }
@@ -180,8 +241,8 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
                                                               ifelse(node_tmp$split_na_action,'**','++')),
                                                        threshold[1]),collapse = ' '),
                                    paste(c(c_name[node_tmp$split_idx],'in {', paste(left_group[[1]],collapse = ', '),
-                                            ifelse(is.na(node_tmp$split_na_action),'',
-                                                   ifelse(node_tmp$split_na_action,'**','++')), '}'),collapse = ' '))
+                                           ifelse(is.na(node_tmp$split_na_action),'',
+                                                  ifelse(node_tmp$split_na_action,'**','++')), '}'),collapse = ' '))
 
         node_tmp$left = 2 * node_tmp$idx # Decide the child index for the current node
         queue = append(queue,list(list(node_tmp$idx_r[idx_left],subnode_index_c, node_tmp$left)))
@@ -191,23 +252,22 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 5, min_nsize = NULL
     }
     node_saved[[node_tmp$idx]] = list(node_tmp) # 出口4
   }
-
-
-# Pruning -----------------------------------------------------------------
-
-
-# Evaluation --------------------------------------------------------------
-
-
-# 结果输出部分 ------------------------------------------------------------------
+  # 结果输出部分 ------------------------------------------------------------------
 
   res = list()
   res$formula = formula
   res$treenode = node_saved # 所有节点信息
-  res$dat = dat # 存储源数据
+  res$dat = dat # 存储源数据——以后要修改，否则占地面积过大
+  res$cnames = colnames(dat) # 存储变量名，用来日后的排序
   res$prior = prior
   res$response = response # 为了后面的画图
-  res$response_name = colnames(model.frame(formula, data))[1]
   cat('The LDA tree is completed.\n')
   return(res)
 }
+
+
+
+
+
+
+
