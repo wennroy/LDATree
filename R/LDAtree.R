@@ -9,7 +9,8 @@
 #' @export
 #'
 #' @examples
-LDAtree <- function(formula, data, prior = NULL, max_level = 10, min_nsize = NULL){
+LDAtree <- function(formula, data, prior = NULL, max_level = 10,
+                    min_nsize = NULL, cv_number = 10, select.method = 'chi'){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
 
@@ -55,7 +56,6 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 10, min_nsize = NUL
   T_saved = fit$treenode
   fit = traverse(fit) # Get the alpha
   # Divide the data into ten parts
-  cv_number = 5
   set.seed(dim(dat)[1]*dim(dat)[2]) # Fixed seed
   idx_CV = sample(c(rep(1:(cv_number-1),each = dim(dat)[1]%/%cv_number),
                     numeric(dim(dat)[1] - (cv_number-1)* (dim(dat)[1]%/%cv_number))+cv_number))
@@ -72,7 +72,7 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 10, min_nsize = NUL
                         SE_Mean = numeric(0),
                         alpha = numeric(0))
   CV_table[dim(CV_table)[1]+1,] = c(dim(CV_table)[1]+1,sum(!sapply(fit$treenode,is.null)),
-                                    get_mean_se(cv_fit,idx_CV,response,dat),-1)
+                                    get_mean_se(cv_fit,idx_CV,response,dat,cv_number),-1)
   while(sum(!sapply(fit$treenode,is.null)) > 1){ # 除非是切到根结点了
     cat('The current number of node is', sum(!sapply(fit$treenode,is.null)), '\n')
     # 找到切割的alpha
@@ -96,7 +96,14 @@ LDAtree <- function(formula, data, prior = NULL, max_level = 10, min_nsize = NUL
   alpha_final = CV_table$alpha[which(CV_table$Mean_MSE<=star_threshold)[1]]
   fit$treenode = T_saved
   fit = traverse(fit) # Get the alpha
-  fit = cut_alpha(fit,alpha_final)
+  CV_table = CV_table[dim(CV_table)[1]:1,]
+  tmp = 1
+  while(CV_table$alpha[tmp] <= alpha_final){
+    fit = cut_alpha(fit,CV_table$alpha[tmp])
+    fit = traverse(fit)
+    tmp = tmp + 1
+  }
+
   fit$response_name = colnames(model.frame(formula, data))[1]
   fit$CV_table = CV_table[dim(CV_table)[1]:1,]
   return(fit)
@@ -189,7 +196,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize){
       # 不管是什么类型的数据，我们都可以复用
 
       # Variable selection
-      chi_stat = apply(dat_tmp,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt))
+      chi_stat = apply(dat_tmp,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select.method))
       c_split = which(chi_stat == max(chi_stat))[1] # 这个是新的index，不是旧的
 
 

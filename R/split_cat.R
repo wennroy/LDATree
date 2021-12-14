@@ -282,3 +282,88 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
   #   return(threshold[idx_threshold])
   # }
 }
+
+
+split_fact <- function(x,y,datx, mis_curr, prior){
+  # With given prior
+  fit_split = lda(y~x)
+  # print(fit_split)
+  # cat(fit_split$means,prior,'\n')
+  prior = prior[prior!=0] # 去掉那些空的组
+  gm_obs = cbind(fit_split$means,prior)
+  gm_obs = gm_obs[order(gm_obs[,1]),] # 从小到大排序
+  # print(gm_obs)
+  sigma2_tmp = mean(tapply(x,y,FUN = var),na.rm = TRUE) # simple average, 以后或许可以变成weighted
+  # 先找到choose k 2个交点
+  possible_cut = c()
+  for(o_o in 1:(dim(gm_obs)[1]-1)){
+    for(o_0 in (o_o+1):dim(gm_obs)[1]){
+      possible_cut = c(possible_cut, (gm_obs[o_o,1] + gm_obs[o_0,1]) / 2 + sigma2_tmp * log(gm_obs[o_o,2] / gm_obs[o_0,2]) / (gm_obs[o_0,1] - gm_obs[o_o,1]))
+    }
+  }
+  # 下面是每个LDA的cut
+  # print(possible_cut)
+  candidate_cut = sort(unique(possible_cut)[range(x)[1] < unique(possible_cut) & unique(possible_cut) < range(x)[2]])
+  if(length(candidate_cut)==0){ # 全部的分割点都在外面，停止分割
+    return(NULL)
+  }
+  plug_in_value = sort(c(range(x),candidate_cut))[-length(candidate_cut)-2] + diff(sort(c(range(x),candidate_cut)))/2
+  # print(plug_in_value)
+  res_tmp = sapply(1:dim(gm_obs)[1], function(o_o) (plug_in_value - gm_obs[o_o,1])^2 - 2 * sigma2_tmp * log(gm_obs[o_o,2]))
+  # print(res_tmp)
+  res_tmp = apply(res_tmp,1,which.min)
+
+  final_cut = c() # 真正的cut
+  for(o_o in 2 : length(res_tmp)){
+    if(res_tmp[o_o] != res_tmp[o_o-1]){
+      final_cut = c(final_cut, candidate_cut[o_o - 1])
+    }
+  }
+  # 最后检查一下有没有空组
+  final_cut_pro = c()
+  test_tmp = table(cut(x,breaks = c(-Inf,final_cut,Inf)))
+  # print(test_tmp)
+  for(o_o in 1 : length(final_cut)){
+    if(test_tmp[o_o] != 0){
+      final_cut_pro = c(final_cut_pro, final_cut[o_o])
+    }
+  }
+  if(test_tmp[length(test_tmp)] == 0){
+    final_cut_pro = final_cut_pro[-length(final_cut_pro)]
+  }
+  if(length(final_cut_pro) == 0){
+    return(NULL)
+  }
+  # print(final_cut_pro)
+  # 如果传回的是NULL，就说明全部都被预测为同一类，那就停止吧
+
+
+  # print(final_cut)
+  # # unique
+  # ans = numeric(dim(gm_obs)[1] - 1)
+  #
+  # range(x) # 找到最大最小值
+  # # 如果有两组mean一样的话，把他们合并
+  # cursor_tmp = 1
+  # while(cursor_tmp <= length(ans)){
+  #   if(gm_obs[cursor_tmp,1] == gm_obs[cursor_tmp+1,1]){
+  #     gm_obs[cursor_tmp,1] = gm_obs[cursor_tmp+1,1] + gm_obs[cursor_tmp,1]
+  #     gm_obs[cursor_tmp,2] = gm_obs[cursor_tmp+1,2] + gm_obs[cursor_tmp,2]
+  #     gm_obs = gm_obs[-(cursor_tmp+1),]
+  #   }else{
+  #     cursor_tmp = cursor_tmp + 1
+  #   }
+  # }
+  #
+  # for(o_o in 1:length(ans)){
+  #   ans[o_o] = (gm_obs[o_o,1] + gm_obs[o_o+1,1]) / 2 + sigma2_tmp * log(gm_obs[o_o,2] / gm_obs[o_o+1,2]) / (gm_obs[o_o+1,1] - gm_obs[o_o,1])
+  # }
+  return(final_cut_pro)
+}
+
+
+
+
+
+
+

@@ -81,6 +81,7 @@ cut_alpha <- function(fit, alpha_tmp){
 get_mean_se <- function(cv_fit,idx_CV,response,dat,cv_number){
   error_record = numeric(cv_number)
   for(i in 1:cv_number){
+    cat('CV:',i,'\n')
     r_tmp = which(idx_CV == i) # 找出第i组的行index
     # 这里要加as.character() 否则apply会把部分factor变成数字，但归根结底还是predict函数不能支持多个x一起，待修改
     predict_tmp = character(length(r_tmp))
@@ -91,7 +92,7 @@ get_mean_se <- function(cv_fit,idx_CV,response,dat,cv_number){
     error_record[i] = mean(observe_tmp!=predict_tmp)
   }
   # print(error_record)
-  return(c(mean(error_record), sd(error_record)))
+  return(c(mean(error_record), sd(error_record) / sqrt(cv_number))) # 开始这里没除sqrt{n} 很愚蠢
 }
 
 

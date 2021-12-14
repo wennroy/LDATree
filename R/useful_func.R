@@ -64,8 +64,12 @@ var_select_noncat <- function(x, y, Nt, Jt){
 # }
 
 
-var_select_all <- function(x, y, Nt, Jt){
-  if(class(x) %in% c('numeric', 'integer')){
+var_select_all <- function(x, y, Nt, Jt, select.method){
+  if(select.method == 'F'){
+    # 如果是cat要先变成LDA1，确保到下一步之前是numerical变量
+    F_stat = anova(lm(x~y))$`F value`[1]
+    return(F_stat)
+  }else if(class(x) %in% c('numeric', 'integer')){
     return(var_select_noncat(x, y, Nt, Jt))
   }else{
     return(var_select_cat(x,y))
