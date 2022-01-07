@@ -284,7 +284,7 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
 }
 
 
-split_fact <- function(x,y,datx, mis_curr, prior){
+split_fact_uni <- function(x,y, prior){
   # With given prior
   fit_split = lda(y~x)
   # print(fit_split)
@@ -293,7 +293,10 @@ split_fact <- function(x,y,datx, mis_curr, prior){
   gm_obs = cbind(fit_split$means,prior)
   gm_obs = gm_obs[order(gm_obs[,1]),] # 从小到大排序
   # print(gm_obs)
-  sigma2_tmp = mean(tapply(x,y,FUN = var),na.rm = TRUE) # simple average, 以后或许可以变成weighted
+  # weighted average: (nj-1)sigma2
+  sigma2_tmp = weighted.mean(tapply(x,y,FUN = var),w = sapply(table(y),FUN = function(o_o) max(o_o-1,0)))
+
+
   # 先找到choose k 2个交点
   possible_cut = c()
   for(o_o in 1:(dim(gm_obs)[1]-1)){
@@ -319,6 +322,9 @@ split_fact <- function(x,y,datx, mis_curr, prior){
       final_cut = c(final_cut, candidate_cut[o_o - 1])
     }
   }
+  if(length(final_cut) == 0){
+    return(NULL)
+  }
   # 最后检查一下有没有空组
   final_cut_pro = c()
   test_tmp = table(cut(x,breaks = c(-Inf,final_cut,Inf)))
@@ -334,30 +340,6 @@ split_fact <- function(x,y,datx, mis_curr, prior){
   if(length(final_cut_pro) == 0){
     return(NULL)
   }
-  # print(final_cut_pro)
-  # 如果传回的是NULL，就说明全部都被预测为同一类，那就停止吧
-
-
-  # print(final_cut)
-  # # unique
-  # ans = numeric(dim(gm_obs)[1] - 1)
-  #
-  # range(x) # 找到最大最小值
-  # # 如果有两组mean一样的话，把他们合并
-  # cursor_tmp = 1
-  # while(cursor_tmp <= length(ans)){
-  #   if(gm_obs[cursor_tmp,1] == gm_obs[cursor_tmp+1,1]){
-  #     gm_obs[cursor_tmp,1] = gm_obs[cursor_tmp+1,1] + gm_obs[cursor_tmp,1]
-  #     gm_obs[cursor_tmp,2] = gm_obs[cursor_tmp+1,2] + gm_obs[cursor_tmp,2]
-  #     gm_obs = gm_obs[-(cursor_tmp+1),]
-  #   }else{
-  #     cursor_tmp = cursor_tmp + 1
-  #   }
-  # }
-  #
-  # for(o_o in 1:length(ans)){
-  #   ans[o_o] = (gm_obs[o_o,1] + gm_obs[o_o+1,1]) / 2 + sigma2_tmp * log(gm_obs[o_o,2] / gm_obs[o_o+1,2]) / (gm_obs[o_o+1,1] - gm_obs[o_o,1])
-  # }
   return(final_cut_pro)
 }
 

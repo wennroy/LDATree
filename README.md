@@ -34,7 +34,7 @@ library(LDATree)
 ```
 
 What is special about using `README.Rmd` instead of just `README.md`?
-You can include R chunks like so:
+You can include R chunks like so:123
 
 ``` r
 summary(cars)

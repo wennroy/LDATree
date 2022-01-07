@@ -64,17 +64,36 @@ var_select_noncat <- function(x, y, Nt, Jt){
 # }
 
 
-var_select_all <- function(x, y, Nt, Jt, select.method){
-  if(select.method == 'F'){
-    # 如果是cat要先变成LDA1，确保到下一步之前是numerical变量
-    F_stat = anova(lm(x~y))$`F value`[1]
-    return(F_stat)
-  }else if(class(x) %in% c('numeric', 'integer')){
+var_select_all <- function(x, y, Nt, Jt, select_method){
+  # 把方法外包出去
+  if(pmatch(select_method, c('LDATree', 'FACT')) == 1){
+    # LDATree
+    return(var_select_LDATree(x, y, Nt, Jt))
+  }else if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
+    # FACT
+    return(var_select_FACT(x, y, Nt, Jt))
+  }
+}
+
+var_select_LDATree <- function(x, y, Nt, Jt){
+  if(class(x) %in% c('numeric', 'integer')){
     return(var_select_noncat(x, y, Nt, Jt))
   }else{
     return(var_select_cat(x,y))
   }
 }
+
+var_select_FACT <- function(x, y, Nt, Jt){
+  # if(class(x) %in% c('numeric', 'integer')){
+  #   F_stat = anova(lm(x~y))$`F value`[1] # F-value
+  #   return(F_stat)
+  # }else{
+  #   return(var_select_cat(x,y))
+  # }
+  F_stat = anova(lm(x~y))$`F value`[1] # F-value
+  return(F_stat)
+}
+
 
 # 这个函数是为了防止LDA因为constant in groups 而报错
 within_check <- function(y,x){
@@ -149,7 +168,116 @@ best_friend <- function(x_new, x_original){ # 找到最像的朋友们，按相�
   return(idx_notNA[order(dist_tmp[-1])]) # 返回一个距离的排序
 }
 
+# FACT cat -> num
 
+# x <- dat[,o_o]
+# y = response
+
+fact_cat <- function(x,y, prior){
+  dummy_matrix = model.matrix(y~x-1) # Get the dummy matrix
+  # fit = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
+  # eigen_keep = which(round(fit$values,8) > 0) # 保留正值
+  # X_dummy = dummy_matrix %*% fit$vectors[,eigen_keep] # Projection
+  fit = princomp(dummy_matrix, cor = TRUE)
+  X_dummy = fit$scores[,round(fit$sdev^2,8) > 0, drop = FALSE] # 这个drop = F感觉得变成default，总会报错
+  X_dummy = X_dummy[,apply(X_dummy,2,function(x_x) !within_check(y,x_x)), drop = FALSE] # 改掉group constant
+  new_data = data.frame(y, X_dummy)
+  fit_lda = lda(y~., data = new_data, prior = prior) # 这个LDA需要后面的scaling，所以先不变robust了
+  X_num = X_dummy %*% fit_lda$scaling[,1] # Project 到 LD1 上面去
+  reexp = unique(data.frame(x,X_num)) # 找到x和X_num的对照表
+  return(list(X_num,reexp))
+}
+
+PCA_Y <- function(datx, beta_ratio = 0.05){
+  d_matrix = as.matrix(datx)
+  fit = princomp(d_matrix, cor = TRUE)
+  X_d = fit$scores[,fit$sdev^2 >= (fit$sdev^2)[1] * beta_ratio]
+  return(X_d)
+}
+
+
+
+############
+# 浓缩成一个函数
+# 输出结果包括：是否继续划分，如果是的话，返回cut point, idx_children, no_class
+
+fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, simple_mean = FALSE){
+  if(!simple_mean){
+    # prior calculation
+    pjt = prior * node_tmp$portion / Nj
+    pjgt = pjt / sum(pjt) # standardize
+    node_error_rate = sum(pjt) - max(pjt) # 这里要用绝对错误，而不是相对错误
+    threshold = split_fact_uni(x,y, pjgt)
+    if(is.null(threshold)){
+      node_saved[[node_tmp$idx]] = list(node_tmp)
+      return(NULL) # 停止分割
+    }
+    # 下面可以继续分
+    node_tmp$split_cri = round(threshold,1) # 只保留一位小数
+  }else{
+    node_error_rate = Inf
+    node_tmp$split_cri = mean(x) # Take mean to prevent early stopping
+  }
+
+  no_class = length(node_tmp$split_cri) + 1 #  产生了几个子节点
+  group_idx = cut(x,breaks = c(-Inf,node_tmp$split_cri,Inf),
+                  labels = 1:no_class,right = TRUE) # 包含右边界
+  idx_children = sapply(1:no_class, FUN = function(o_o) which(group_idx == o_o)) # save the idx_r for children
+  # subnode_index_c = node_tmp$idx_c # 剩下的cov
+
+  # 出口4.5: 判断是否不存在任何一组大于minimum node size，到达了便退出
+  ephemeral = sapply(seq(no_class), function(o_o) sum(table(y[idx_children[[o_o]]]) >= min_nsize))
+  if(min(ephemeral) < 1){
+    # print(table(response_tmp[idx_children[[o_o]]]))
+    # cat('NA happens there 1:', node_tmp$idx,'\n')
+    print('Exit 4.5')
+    # node_tmp$split_idx = node_tmp$split_cri = NA
+    # node_saved[[node_tmp$idx]] = list(node_tmp)
+    return(NULL) # 停止分割
+  }
+
+
+  # 出口5: 决定是否要继续分了，根据错误率
+  children_error_rate = numeric(no_class)
+  for(o_o in 1:no_class){
+    pjt = prior * table(y[idx_children[[o_o]]]) / Nj
+    # pjgt = pjt / sum(pjt)
+    children_error_rate[o_o] = sum(pjt) - max(pjt)
+  }
+
+  if(sum(children_error_rate) >= node_error_rate){
+    print('Exit 5')
+    # node_tmp$split_idx = node_tmp$split_cri = NA
+    # node_saved[[node_tmp$idx]] = list(node_tmp)
+    return(NULL) # 停止分割
+    # next # 出口5
+  }
+  return(list(node_tmp, idx_children, no_class))
+}
+
+
+############
+
+nsphere <- function(x){
+  # 函数的目的是将K列的矩阵从笛卡尔坐标系变成球坐标系
+  # 返回一个K列的矩阵
+  # 变换方式：https://www.wikiwand.com/en/N-sphere#/Spherical_coordinates
+  K = dim(x)[2]
+  if(is.null(K)){
+    cat('Something wrong with the input for polar transformation')
+  }
+  res = x
+  res[,1L] = apply(x,1L,function(o_o) sqrt(sum(o_o^2)))
+  # Calculate the phi
+  phi_func <- function(x_x){
+    return(acos(x_x[1] / sqrt(sum(x_x^2))))
+  }
+  for(i in seq_len(K-1)){
+    res[,i+1] = apply(x[,i:K],1L,phi_func)
+  }
+  res[which(x[,K]<0),K] = 2 * pi - res[which(x[,K]<0),K]
+  return(res)
+}
 
 
 

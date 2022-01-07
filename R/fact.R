@@ -1,5 +1,5 @@
 fact <- function(formula, data, prior = NULL, max_level = 10,
-                    min_nsize = NULL, cv_number = 10, select.method = 'F'){
+                    min_nsize = NULL, cv_number = 10){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
 
@@ -39,7 +39,7 @@ fact <- function(formula, data, prior = NULL, max_level = 10,
 
 
   # Model 部分 ----------------------------------------------------------------
-  fit = tree_growing_fact(response, dat, prior, max_level, min_nsize, select.method)
+  fit = tree_growing_fact(response, dat, prior, max_level, min_nsize, select_method)
 
   # Pruning -----------------------------------------------------------------
 #
@@ -105,7 +105,7 @@ fact <- function(formula, data, prior = NULL, max_level = 10,
 
 
 
-tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select.method){
+tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select_method){
   # Model 部分 ----------------------------------------------------------------
   col_idx = 1:ncol(dat)
   queue = list(list(1:nrow(dat),col_idx,1L)) # Used to save the current intermediate nodes
@@ -186,7 +186,7 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
       # 不管是什么类型的数据，我们都可以复用
 
       # Variable selection
-      chi_stat = apply(dat_tmp,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select.method))
+      chi_stat = apply(dat_tmp,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
       c_split = which(chi_stat == max(chi_stat))[1] # 这个是新的index，不是旧的
 
 
@@ -215,8 +215,6 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
       subnode_index_c = node_tmp$idx_c # 剩下的cov
       node_tmp$split_idx = node_tmp$idx_c[c_split]
 
-
-
       # 决定是否要继续分了
       children_error_rate = numeric(no_class)
       for(o_o in 1:no_class){
@@ -227,7 +225,7 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
 
       # 判断是否到达了 maximum level，和minimum node size，到达了便退出
       # FACT
-      cat(node_error_rate,children_error_rate,'\n')
+      # cat(node_error_rate,children_error_rate,'\n')
       if(sum(children_error_rate) >= node_error_rate){ # 这里有点问题
         node_tmp$split_idx = node_tmp$split_cri = NA
         node_saved[[node_tmp$idx]] = list(node_tmp)

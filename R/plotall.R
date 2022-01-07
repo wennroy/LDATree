@@ -16,6 +16,7 @@ plotall <- function(fit){
   stack = c(1)
   idx_curr = 1
   node_count = sum(sapply(node_saved,function(x) !is.null(x))) - 1 # 减去一个 response 的 count
+  # 那里为什么要-1，我还是没懂
   edges <- data.frame(from = numeric(node_count), to = numeric(node_count))
   size_plot = id_plot = level_plot = numeric(node_count)
   label_plot = group_plot = character(node_count)
@@ -92,7 +93,11 @@ info_panel <- function(fit){
 }
 
 plotall_fact <- function(fit){
-  no_j = length(unique(fit$response))
+  # 因为有dispersion的出现，从J叉树变成了2J叉树
+  # 所以node标号要换一下，变成2J进制
+  # no_j = 2 * length(unique(fit$response)) # 还是no_j个组，只不过为了画图方便
+  # 这一套被抛弃了，为了运算效率
+
   ### 全局大图
   node_saved = fit$treenode
   response = fit$response
@@ -107,22 +112,52 @@ plotall_fact <- function(fit){
     id_tmp = node_saved[[stack[1]]][[1]]
     stack = stack[-1]
     id_plot[idx_curr] = id_tmp$idx
-    level_plot[idx_curr] = floor(log(id_tmp$idx)/log(no_j) + 1)
+    # level_plot[idx_curr] = floor(log(id_tmp$idx)/log(no_j) + 1)
+    level_plot[idx_curr] = id_tmp$layer
     # 将分割方法写到edge上面
     if(idx_curr>1){
-      parent_idx = floor(id_tmp$idx / no_j)
-      sibling_order = id_tmp$idx %% no_j
+      # parent_idx = floor(id_tmp$idx / no_j)
+      parent_idx = id_tmp$parent
+      # sibling_order = id_tmp$idx %% no_j
+      sibling_order = which(node_saved[[parent_idx]][[1]]$children == id_tmp$idx) - 1
       current_vname = fit$cnames[node_saved[[parent_idx]][[1]]$split_idx]
       current_split = round(node_saved[[parent_idx]][[1]]$split_cri,2)
+      idx_cov_cat = match(current_vname,names(fit$cat_trans)) # cat判别器
+
       if(sibling_order == 0){
         # 1. left end
-        edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(current_vname,'\u2264',current_split[1]))
+        # 看看是不是cat
+        if(is.na(idx_cov_cat)){
+          # numerical
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(current_vname,'\u2264',current_split[1]))
+        }else{
+          cat_trans_tmp = fit$cat_trans[[idx_cov_cat]]
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(c(current_vname,'in {',
+                  paste(cat_trans_tmp[which(cat_trans_tmp[,2]<=current_split[1]),1],collapse = ', '), '}'),collapse = ' '))
+        }
       }else if(sibling_order == length(current_split)){
         # 2. right end
-        edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(current_vname,'\u003E',current_split[sibling_order]))
+        # 看看是不是cat
+        if(is.na(idx_cov_cat)){
+          # numerical
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(current_vname,'\u003E',current_split[sibling_order]))
+        }else{
+          cat_trans_tmp = fit$cat_trans[[idx_cov_cat]]
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(c(current_vname,'in {',
+                                     paste(cat_trans_tmp[which(cat_trans_tmp[,2]>current_split[sibling_order]),1],collapse = ', '), '}'),collapse = ' '))
+        }
       }else{
-        both_end = paste(current_split[sibling_order],'\u003C', current_vname,'\u2264',current_split[sibling_order+1])
-        edges[idx_curr,] = c(parent_idx,id_tmp$idx,both_end)
+        # 看看是不是cat
+        if(is.na(idx_cov_cat)){
+          # numerical
+          both_end = paste(current_split[sibling_order],'\u003C', current_vname,'\u2264',current_split[sibling_order+1])
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx,both_end)
+        }else{
+          cat_trans_tmp = fit$cat_trans[[idx_cov_cat]]
+          idx_cat_tmp = which(cat_trans_tmp[,2]>current_split[sibling_order] & cat_trans_tmp[,2] <= current_split[sibling_order+1])
+          edges[idx_curr,] = c(parent_idx,id_tmp$idx, paste(c(current_vname,'in {',
+                                     paste(cat_trans_tmp[idx_cat_tmp,1],collapse = ', '), '}'),collapse = ' '))
+        }
       }
     }
 
