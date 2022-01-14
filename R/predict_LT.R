@@ -35,7 +35,9 @@ predict_LT <- function(fit, x_new){
   while(1){
     # print(tmp_node)
     node_tmp = fit$treenode[[tmp_node]][[1]]
-    if(is.null(node_tmp$leaves)){
+    # print(node_tmp$idx)
+    # if(is.null(node_tmp$leaves)){
+    if(any(is.na(node_tmp$children))){
       # 到了叶子结点
       if(node_tmp$pred_method == 'mode'){
         # 用众数估计
@@ -65,11 +67,20 @@ predict_LT <- function(fit, x_new){
       }
     }else{
       # 在中间节点，决定下一步往哪里走
-      inline_x = x_new[1,node_tmp$split_idx] # 即将等待划分的X
+      if(pmatch(fit$split_method, c('univariate', 'linear')) == 1){
+        inline_x = x_new[1,node_tmp$split_idx] # 即将等待划分的X
+      }else{
+        cat('Node Index:', node_tmp$idx, '\n')
+        # print(node_tmp$linear_split_trans)
+        cat('idx_c using:', node_tmp$idx_c, '\n')
+        inline_x = node_tmp$linear_split_trans(x_new[1,node_tmp$idx_c])[,node_tmp$split_idx]
+      }
       if(class(node_tmp$split_cri) %in% c('numeric', 'integer')){
         # continous variable
         if(!is.na(inline_x)){
-          tmp_node = 2*tmp_node + ifelse(inline_x <= node_tmp$split_cri, 0, 1)
+          # tmp_node = 2*tmp_node + ifelse(inline_x <= node_tmp$split_cri, 0, 1)
+          # 下面开始写的是大于等于，但是发现不太对劲，应该是大于，因为要找小于等于的反面
+          tmp_node = node_tmp$children[which.min(inline_x > c(node_tmp$split_cri,Inf))]
         }else{
           if(!is.na(node_tmp$split_na_action)){
             # 如果划分的时候包含了NA的情况

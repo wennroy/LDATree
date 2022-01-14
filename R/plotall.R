@@ -109,6 +109,7 @@ plotall_fact <- function(fit){
   label_plot = group_plot = character(node_count)
 
   while(length(stack) > 0){
+    # print(stack)
     id_tmp = node_saved[[stack[1]]][[1]]
     stack = stack[-1]
     id_plot[idx_curr] = id_tmp$idx
@@ -116,6 +117,7 @@ plotall_fact <- function(fit){
     level_plot[idx_curr] = id_tmp$layer
     # 将分割方法写到edge上面
     if(idx_curr>1){
+      # print(idx_curr)
       # parent_idx = floor(id_tmp$idx / no_j)
       parent_idx = id_tmp$parent
       # sibling_order = id_tmp$idx %% no_j
@@ -165,7 +167,7 @@ plotall_fact <- function(fit){
       size_plot[idx_curr] = 2 # 节点大小
       # text_zhanbi = paste(round(id_tmp$portion / id_tmp$size,1), collapse = ' / ')
       text_zhanbi = paste(id_tmp$portion, collapse = ' / ')
-      node_idx_plot = paste('Node',id_tmp$idx)
+      node_idx_plot = paste('Node',id_tmp$idx,id_tmp$alpha) # 加一个alpha用来debug
       label_plot[idx_curr] = paste(text_zhanbi,
                                    id_tmp$size, node_idx_plot, sep = ' \n ')
       stack = c(stack,id_tmp$children)

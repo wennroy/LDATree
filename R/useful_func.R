@@ -188,20 +188,58 @@ fact_cat <- function(x,y, prior){
   return(list(X_num,reexp))
 }
 
-PCA_Y <- function(datx, beta_ratio = 0.05){
+PCA_Y <- function(datx, response_tmp, beta_ratio = 0.05, situation = 1){
+  # 参数这么多，完全是为了prediction
   d_matrix = as.matrix(datx)
   fit = princomp(d_matrix, cor = TRUE)
-  X_d = fit$scores[,fit$sdev^2 >= (fit$sdev^2)[1] * beta_ratio]
-  return(X_d)
+  # 这里需要记录下来转移的均值和系数，供之后的prediction使用
+  comp_kept = (fit$sdev^2 >= (fit$sdev^2)[1] * beta_ratio)
+  X_d = fit$scores[,comp_kept] # 这个决定了dat_tmp_y有多少列
+
+  # 全在这里面再算一遍，robustness，因为居然出现了y和w维数不同的错误
+  # 确实不明白是怎么发生的，但是全在这里面算一遍有助于解决问题
+  trans_w_tmp = scale(X_d,center = TRUE, scale = FALSE)
+  dat_tmp_w = abs(trans_w_tmp)
+  p_stat = p.adjust(apply(dat_tmp_w,2,function(o_o) car::leveneTest(y = o_o, group = response_tmp)[[3]][1]))
+  levene_sig <- (p_stat <= 0.05)
+
+  # Function to get y from x
+  linear_split_trans <- function(x_new){
+    y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+    return(y_new)
+  }
+  if(situation == 3){
+    linear_split_trans <- function(x_new){
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
+      return(w_new)
+    }
+    return(linear_split_trans)
+  }else if(situation == 4){
+    linear_split_trans <- function(x_new){
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
+      w_new = nsphere(w_new)
+      return(w_new)
+    }
+    return(linear_split_trans)
+  }else if(situation == 5){
+    linear_split_trans <- function(x_new){
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
+      w_new[,levene_sig] = nsphere(w_new[,levene_sig])
+      return(w_new)
+    }
+    return(linear_split_trans)
+  }
+  return(list(X_d, linear_split_trans))
 }
-
-
 
 ############
 # 浓缩成一个函数
 # 输出结果包括：是否继续划分，如果是的话，返回cut point, idx_children, no_class
 
-fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, simple_mean = FALSE){
+fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, get_size, simple_mean = FALSE){
   if(!simple_mean){
     # prior calculation
     pjt = prior * node_tmp$portion / Nj
@@ -209,7 +247,7 @@ fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, simple_mean = FALS
     node_error_rate = sum(pjt) - max(pjt) # 这里要用绝对错误，而不是相对错误
     threshold = split_fact_uni(x,y, pjgt)
     if(is.null(threshold)){
-      node_saved[[node_tmp$idx]] = list(node_tmp)
+      # node_saved[[node_tmp$idx]] = list(node_tmp)
       return(NULL) # 停止分割
     }
     # 下面可以继续分
@@ -226,7 +264,10 @@ fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, simple_mean = FALS
   # subnode_index_c = node_tmp$idx_c # 剩下的cov
 
   # 出口4.5: 判断是否不存在任何一组大于minimum node size，到达了便退出
+  # print(no_class)
+  # print(node_tmp$split_cri)
   ephemeral = sapply(seq(no_class), function(o_o) sum(table(y[idx_children[[o_o]]]) >= min_nsize))
+  # print(ephemeral)
   if(min(ephemeral) < 1){
     # print(table(response_tmp[idx_children[[o_o]]]))
     # cat('NA happens there 1:', node_tmp$idx,'\n')
@@ -238,19 +279,22 @@ fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, simple_mean = FALS
 
 
   # 出口5: 决定是否要继续分了，根据错误率
-  children_error_rate = numeric(no_class)
-  for(o_o in 1:no_class){
-    pjt = prior * table(y[idx_children[[o_o]]]) / Nj
-    # pjgt = pjt / sum(pjt)
-    children_error_rate[o_o] = sum(pjt) - max(pjt)
-  }
+  # 只有pre-stopping在乎
+  if(pmatch(get_size, c('CV', 'pre-stopping')) == 2){
+    children_error_rate = numeric(no_class)
+    for(o_o in 1:no_class){
+      pjt = prior * table(y[idx_children[[o_o]]]) / Nj
+      # pjgt = pjt / sum(pjt)
+      children_error_rate[o_o] = sum(pjt) - max(pjt)
+    }
 
-  if(sum(children_error_rate) >= node_error_rate){
-    print('Exit 5')
-    # node_tmp$split_idx = node_tmp$split_cri = NA
-    # node_saved[[node_tmp$idx]] = list(node_tmp)
-    return(NULL) # 停止分割
-    # next # 出口5
+    if(sum(children_error_rate) >= node_error_rate){
+      print('Exit 5')
+      # node_tmp$split_idx = node_tmp$split_cri = NA
+      # node_saved[[node_tmp$idx]] = list(node_tmp)
+      return(NULL) # 停止分割
+      # next # 出口5
+    }
   }
   return(list(node_tmp, idx_children, no_class))
 }
@@ -262,6 +306,9 @@ nsphere <- function(x){
   # 函数的目的是将K列的矩阵从笛卡尔坐标系变成球坐标系
   # 返回一个K列的矩阵
   # 变换方式：https://www.wikiwand.com/en/N-sphere#/Spherical_coordinates
+  if(is.null(dim(x))){
+    x <- matrix(x,1)
+  }
   K = dim(x)[2]
   if(is.null(K)){
     cat('Something wrong with the input for polar transformation')
@@ -273,11 +320,23 @@ nsphere <- function(x){
     return(acos(x_x[1] / sqrt(sum(x_x^2))))
   }
   for(i in seq_len(K-1)){
-    res[,i+1] = apply(x[,i:K],1L,phi_func)
+    res[,i+1] = apply(x[,i:K,drop = FALSE],1L,phi_func)
   }
   res[which(x[,K]<0),K] = 2 * pi - res[which(x[,K]<0),K]
   return(res)
 }
+
+# 自定义infix函数
+`%||%` <- function(lhs, rhs) {
+  if (!is.null(lhs)) {
+    lhs
+  } else {
+    rhs
+  }
+}
+
+
+
 
 
 

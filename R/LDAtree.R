@@ -17,7 +17,7 @@
 LDAtree <- function(){}
 Treee <- function(formula, data, select_method = 'FACT', split_method = 'univariate',
                   get_size = 'CV', prior = NULL, max_level = 10, min_nsize = NULL,
-                  cv_number = 10, F0 = 4){
+                  cv_number = 10, F0 = 4, misclass_cost = NULL){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
 
@@ -39,16 +39,18 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   ###
 
   ### 设定每个节点的最小数据量
-  if(is.null(min_nsize)){
-    min_nsize = max(length(response) %/% 100, 5) # 每个node最少5个
-  }
+  min_nsize <-  min_nsize %||% max(length(response) %/% 100, 5) # 每个node最少5个
   ###
 
   ### 设定Prior
-  if(is.null(prior)){
-    prior = tabulate(response)/nrow(data) # 如果没给prior，用estimated prior
-  }
+  prior <-  prior %||% tabulate(response)/nrow(data) # 如果没给prior，用estimated prior
   ###
+
+  ### 设定misclassification cost
+  misclass_cost <- misclass_cost %||% (1 - diag(length(levels(response))))
+  colnames(misclass_cost) <- colnames(misclass_cost) %||% levels(response)
+  rownames(misclass_cost) <- rownames(misclass_cost) %||% levels(response)
+
 
   ### 找到所有要使用的X，合在一起变成dat
   dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
@@ -72,8 +74,14 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
 
 
 # Model 部分 ----------------------------------------------------------------
-  fit = tree_growing(response, dat, prior, max_level, min_nsize, select_method, split_method, F0)
+  fit = tree_growing(response, dat, prior, max_level, min_nsize, select_method, split_method, F0, get_size)
   # fit = tree_growing_fact(response, dat, prior, max_level, min_nsize, select_method)
+  # prepare for the imformation in output
+  fit$split_method = split_method # for prediction
+  fit$misclass_cost = misclass_cost
+
+
+
 
   # FACT 离散变量表
   if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
@@ -86,6 +94,11 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   if(pmatch(get_size, c('CV', 'pre-stopping')) == 2){
     return(fit) # Pre-stopping rule 直接回到快乐老家
   }
+
+  if(sum(!sapply(fit$treenode,is.null)) == 1){ # 如果只有根节点，直接出局
+    return(fit)
+  }
+
   T_saved = fit$treenode
   fit = traverse(fit) # Get the alpha
   # Divide the data into ten parts
@@ -95,7 +108,8 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   cv_fit = vector("list", cv_number)
   for(i in 1:cv_number){
     r_tmp = which(idx_CV == i) # 找出第i组的行index
-    cv_fit[[i]] = tree_growing(response[-r_tmp], dat[-r_tmp,], prior, max_level, min_nsize, select_method, F0) # 找出母树
+    # 这里有个tree_growing function，需要随时跟着tree_growing的发展来发展
+    cv_fit[[i]] = tree_growing(response[-r_tmp], dat[-r_tmp,], prior, max_level, min_nsize, select_method, split_method, F0, get_size) # 找出母树
     cv_fit[[i]] = traverse(cv_fit[[i]]) # update alpha
   }
   # plotall(cv_fit[[2]])
@@ -110,10 +124,10 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
     cat('The current number of node is', sum(!sapply(fit$treenode,is.null)), '\n')
     # 找到切割的alpha
     alpha_tmp = get_cut_alpha(fit)
-    fit = cut_alpha(fit,alpha_tmp)
+    fit = cut_alpha(fit,alpha_tmp, select_method)
     fit = traverse(fit)
     for(i in 1:cv_number){
-      cv_fit[[i]] = cut_alpha(cv_fit[[i]],alpha_tmp)
+      cv_fit[[i]] = cut_alpha(cv_fit[[i]],alpha_tmp,select_method)
       cv_fit[[i]] = traverse(cv_fit[[i]])
     }
     # plotall(cv_fit[[3]])
@@ -132,7 +146,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   CV_table = CV_table[dim(CV_table)[1]:1,]
   tmp = 1
   while(CV_table$alpha[tmp] <= alpha_final){
-    fit = cut_alpha(fit,CV_table$alpha[tmp])
+    fit = cut_alpha(fit,CV_table$alpha[tmp],select_method)
     fit = traverse(fit)
     tmp = tmp + 1
   }
@@ -148,7 +162,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
 
 
 
-tree_growing <- function(response, dat, prior, max_level, min_nsize, select_method, split_method, F0){
+tree_growing <- function(response, dat, prior, max_level, min_nsize, select_method, split_method, F0, get_size){
   # Model 部分 ----------------------------------------------------------------
   col_idx = 1:ncol(dat)
   # 对于像FACT来说的多叉树，使用这种方式排列树结构会使得运算效率更高（没人想遍历一个六百万的稀疏列表）
@@ -192,14 +206,14 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
     #   node_tmp$portion[i] = sum(response_tmp == levels(response)[i])
     # }
     node_tmp$portion = as.numeric(table(response_tmp))
+    node_tmp$pred_method = 'mode' # 默认用众数来估计
+    node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion * prior)] # 这个之后反正可以再改
     ###
 
     ### 出口1: 无X，或者所有Y都相同
     Jt = sum(node_tmp$portion != 0) # number of class in node t 当前节点有几类
     if(Jt == 1 | node_tmp$covs == 0){ # If all of the data belongs to one class, or there is no covariates left
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 既然分不下去了，那就只能预测众数
-      node_tmp$pred_method = 'mode'
-      node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
       # 这里要改成prior版本的，带misclassification cost
       node_saved[[node_tmp$idx]] = list(node_tmp)
       next # 出口1
@@ -218,8 +232,6 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
 
     if(node_tmp$covs == 0){ # If there is no covariates left
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 既然分不下去了，那就只能预测众数
-      node_tmp$pred_method = 'mode'
-      node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
       node_saved[[node_tmp$idx]] = list(node_tmp)
       next # 出口2
     }
@@ -356,87 +368,107 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
           subnode_index_c = node_tmp$idx_c # 剩下的cov
           node_tmp$split_idx = node_tmp$idx_c[c_split]
 
+          # 这段代码要保留
           # 判断是否不存在任何一组大于minimum node size，到达了便退出
-          ephemeral = sapply(seq(no_class), function(o_o) sum(table(response_tmp[idx_children[[o_o]]]) >= min_nsize))
-          if(min(ephemeral) < 1){
-            # print(table(response_tmp[idx_children[[o_o]]]))
-            # cat('NA happens there 1:', node_tmp$idx,'\n')
-            print('Exit X')
-            node_tmp$split_idx = node_tmp$split_cri = NA
-            node_saved[[node_tmp$idx]] = list(node_tmp)
-            next # 出口X
-          }
+          # ephemeral = sapply(seq(no_class), function(o_o) sum(table(response_tmp[idx_children[[o_o]]]) >= min_nsize))
+          # if(min(ephemeral) < 1){
+          #   # print(table(response_tmp[idx_children[[o_o]]]))
+          #   # cat('NA happens there 1:', node_tmp$idx,'\n')
+          #   print('Exit X')
+          #   node_tmp$split_idx = node_tmp$split_cri = NA
+          #   node_saved[[node_tmp$idx]] = list(node_tmp)
+          #   next # 出口X
+          # }
 
 
 
           # 决定是否要继续分了
-          children_error_rate = numeric(no_class)
-          for(o_o in 1:no_class){
-            pjt = prior * table(response_tmp[idx_children[[o_o]]]) / Nj
-            # pjgt = pjt / sum(pjt)
-            children_error_rate[o_o] = sum(pjt) - max(pjt)
-          }
-
-          # FACT
-          if(sum(children_error_rate) >= node_error_rate){ # 这里有点问题 # ？？？啥问题
-            # cat('NA happens there 2:', node_tmp$idx,'\n')
-            node_tmp$split_idx = node_tmp$split_cri = NA
-            node_saved[[node_tmp$idx]] = list(node_tmp)
-            next # 出口5
+          # 只有pre-stopping会根据错误率是否下降来判断停止与否
+          if(pmatch(get_size, c('CV', 'pre-stopping')) == 2){
+            children_error_rate = numeric(no_class)
+            for(o_o in 1:no_class){
+              pjt = prior * table(response_tmp[idx_children[[o_o]]]) / Nj
+              # pjgt = pjt / sum(pjt)
+              children_error_rate[o_o] = sum(pjt) - max(pjt)
+            }
+            if(sum(children_error_rate) >= node_error_rate){ # 这里有点问题 # ？？？啥问题
+              # cat('NA happens there 2:', node_tmp$idx,'\n')
+              node_tmp$split_idx = node_tmp$split_cri = NA
+              node_saved[[node_tmp$idx]] = list(node_tmp)
+              next # 出口5
+            }
           }
           ##### 这里是单变量划分的结束 #####
         }else if(pmatch(split_method, c('univariate', 'linear')) == 2){
           # 通过PCA拿到一堆Y
-          dat_tmp_y = PCA_Y(dat_tmp) # 这时候剩几维我们已经不好讲了
+          cat('The dimension of the dat_tmp:', dim(dat_tmp)[2],'\n')
+          res_tmp = PCA_Y(dat_tmp, response_tmp)
+          dat_tmp_y = res_tmp[[1L]] # 这时候剩几维我们已经不好讲了
+          linear_split_trans <- res_tmp[[2L]] # for prediction
           #对这些Y做变量选择
           F_stat = apply(dat_tmp_y,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
           c_split = which.max(F_stat)
-          if(F_stat[c_split] >= F0){
+          # if(F_stat[c_split] >= F0){
+          if(FALSE){
             # 进行正常的纯linear split
+            # Situation: 1
             cat('Linear Combination Scenario 1\n')
-            ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize)
-            node_tmp$split_idx = node_tmp$idx_c[c_split]
+            ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
             if(is.null(ephemeral)){
               node_saved[[node_tmp$idx]] = list(node_tmp)
-              next
+              next # 出口
             }else{
+              # 设置划分
               node_tmp = ephemeral[[1]]
+              node_tmp$split_idx = node_tmp$idx_c[c_split]
+              node_tmp$linear_split_trans = linear_split_trans
+              # 这个地方肯定是跟environment有点关系，我发现如果写在外面包成函数的话，
+              # 所有节点的linear split function 都一模一样，就像我写了x_new[,node_tmp$idx_c]
+              # 之后，所有节点最后都取的是最后一个节点的idx_c，很怪
               idx_children = ephemeral[[2]]
               no_class = ephemeral[[3]]
             }
             ####
           }else{
-            dat_tmp_w = abs(scale(dat_tmp_y,center = TRUE, scale = FALSE))
+            trans_w_tmp = scale(dat_tmp_y,center = TRUE, scale = FALSE)
+            dat_tmp_w = abs(trans_w_tmp)
             F_stat2 = apply(dat_tmp_w,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
             c_split2 = which.max(F_stat2)
             if(F_stat2[c_split2] < F0){
               # univariate split, on y average
+              # Situation: 2
               cat('Linear Combination Scenario 2\n')
-              ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, simple_mean = TRUE)
-              node_tmp$split_idx = node_tmp$idx_c[c_split]
+              ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size, simple_mean = TRUE)
               if(is.null(ephemeral)){
                 node_saved[[node_tmp$idx]] = list(node_tmp)
-                next
+                next # 出口
               }else{
                 node_tmp = ephemeral[[1]]
+                node_tmp$linear_split_trans = linear_split_trans
+                node_tmp$split_idx = node_tmp$idx_c[c_split]
                 idx_children = ephemeral[[2]]
                 no_class = ephemeral[[3]]
               }
 
             }else{
               # levene's test on x
-              p_stat = p.adjust(apply(dat_tmp,2,function(o_o) leveneTest(y = o_o, group = response_tmp)[[3]][1]))
+              p_stat = p.adjust(apply(dat_tmp_w,2,function(o_o) car::leveneTest(y = o_o, group = response_tmp)[[3]][1]))
               levene_sig <- (p_stat <= 0.05)
               if(sum(levene_sig) == 1){
                 # univariate split on w
+                # Situation: 3
                 cat('Linear Combination Scenario 3\n')
-                ephemeral = fact_univar(dat_tmp_w[,levene_sig], response_tmp, node_tmp, prior, Nj, min_nsize)
-                node_tmp$split_idx = node_tmp$idx_c[c_split]
+                # print(levene_sig)
+                # print(dim(dat_tmp_y))
+                # print(dim(dat_tmp_w))
+                ephemeral = fact_univar(dat_tmp_w[,levene_sig], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
-                  next
+                  next # 出口
                 }else{
                   node_tmp = ephemeral[[1]]
+                  node_tmp$split_idx = node_tmp$idx_c[c_split]
+                  node_tmp$linear_split_trans = PCA_Y(dat_tmp, response_tmp, situation = 3)
                   idx_children = ephemeral[[2]]
                   no_class = ephemeral[[3]]
                 }
@@ -444,17 +476,19 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
               }else if(sum(levene_sig) == 0){
                 # change everything to polar
                 # univariate split on r,theta
+                # Situation: 4
                 cat('Linear Combination Scenario 4\n')
-                dat_tmp_polar = nsphere(dat_tmp)
+                dat_tmp_polar = nsphere(dat_tmp_w)
                 F_stat = apply(dat_tmp_polar,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
                 c_split = which.max(F_stat)
-                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize)
-                node_tmp$split_idx = node_tmp$idx_c[c_split]
+                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
-                  next
+                  next # 出口
                 }else{
                   node_tmp = ephemeral[[1]]
+                  node_tmp$split_idx = node_tmp$idx_c[c_split]
+                  node_tmp$linear_split_trans = PCA_Y(dat_tmp, response_tmp, situation = 4)
                   idx_children = ephemeral[[2]]
                   no_class = ephemeral[[3]]
                 }
@@ -462,22 +496,23 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
               }else{
                 # change only the significant ones
                 # univariate split on w,r,theta
+                # Situation: 5
                 cat('Linear Combination Scenario 5\n')
-                dat_tmp_polar = dat_tmp
+                dat_tmp_polar = dat_tmp_w
                 dat_tmp_polar[,levene_sig] = nsphere(dat_tmp_polar[,levene_sig])
                 F_stat = apply(dat_tmp_polar,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
                 c_split = which.max(F_stat)
-                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize)
-                node_tmp$split_idx = node_tmp$idx_c[c_split]
+                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
-                  next
+                  next # 出口
                 }else{
                   node_tmp = ephemeral[[1]]
+                  node_tmp$split_idx = node_tmp$idx_c[c_split]
+                  node_tmp$linear_split_trans = PCA_Y(dat_tmp, response_tmp, situation = 5)
                   idx_children = ephemeral[[2]]
                   no_class = ephemeral[[3]]
                 }
-
               }
             }
           }

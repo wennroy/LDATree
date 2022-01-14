@@ -29,6 +29,7 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA, layer = NA, parent = 
     split_cri = NA, # Splitting criteria
     split_na_action = NA, # 把NA分到左面或者右面, 1 代表左面，0代表右面。NA代表训练时没有NA
     pred_method = NA, #
+    linear_split_trans = NA, # for linear combination split, record the reverse function for prediction
     # prior = NA, # group prior for each class, 目前感觉没啥用
     resub_error = NA, # R(T): for CV pruning
     lda_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测

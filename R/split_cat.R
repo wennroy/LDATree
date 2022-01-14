@@ -286,11 +286,20 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
 
 split_fact_uni <- function(x,y, prior){
   # With given prior
-  fit_split = lda(y~x)
+  # fit_split = lda(y~x)
   # print(fit_split)
   # cat(fit_split$means,prior,'\n')
+
+  # gm = data.frame(y,x) %>%
+  #   group_by(y) %>%
+  #   summarise(x = mean(x))
+
+  gm = sapply(levels(y),function(o_o) mean(x[y==o_o], na.rm = TRUE))
+  # print(fit_split$means)
   prior = prior[prior!=0] # 去掉那些空的组
-  gm_obs = cbind(fit_split$means,prior)
+  # gm_obs = cbind(fit_split$means,prior)
+  gm_obs = cbind(gm[!is.nan(gm)],prior) # 那些空组就去掉了
+  # gm_obs = cbind(gm[,2],prior)
   gm_obs = gm_obs[order(gm_obs[,1]),] # 从小到大排序
   # print(gm_obs)
   # weighted average: (nj-1)sigma2
