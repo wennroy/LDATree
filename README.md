@@ -6,7 +6,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of LDATree is to …
+The goal of LDATree is to 123456
 
 ## Installation
 

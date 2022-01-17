@@ -284,7 +284,7 @@ split_noncat_large <- function(x,y,datx, mis_curr, prior){ # 这一步跑得不�
 }
 
 
-split_fact_uni <- function(x,y, prior){
+split_fact_uni <- function(x,y, prior, misclass_cost, min_nsize){
   # With given prior
   # fit_split = lda(y~x)
   # print(fit_split)
@@ -294,37 +294,115 @@ split_fact_uni <- function(x,y, prior){
   #   group_by(y) %>%
   #   summarise(x = mean(x))
 
-  gm = sapply(levels(y),function(o_o) mean(x[y==o_o], na.rm = TRUE))
-  # print(fit_split$means)
-  prior = prior[prior!=0] # 去掉那些空的组
-  # gm_obs = cbind(fit_split$means,prior)
-  gm_obs = cbind(gm[!is.nan(gm)],prior) # 那些空组就去掉了
-  # gm_obs = cbind(gm[,2],prior)
-  gm_obs = gm_obs[order(gm_obs[,1]),] # 从小到大排序
-  # print(gm_obs)
+  # 这里prior是conditional prior pj|t
+  # 所以如果节点中一个也没有，就会有后验概率 = 0
+  y_level = levels(y)
+  if(any(prior == 0)){
+    idx_zero = which(prior == 0)
+    idx_data = which(!(y %in% y_level[idx_zero])) # keep the other data
+    y = y[idx_data]
+    x = x[idx_data]
+    prior = prior[-idx_zero]
+    y_level = y_level[-idx_zero]
+    misclass_cost = misclass_cost[-idx_zero, -idx_zero]
+  }
+
+
+  # get mu
+  gm = sapply(y_level,function(o_o) mean(x[y==o_o], na.rm = TRUE))
+
+  # get sigma
   # weighted average: (nj-1)sigma2
   sigma2_tmp = weighted.mean(tapply(x,y,FUN = var),w = sapply(table(y),FUN = function(o_o) max(o_o-1,0)))
-
-
-  # 先找到choose k 2个交点
-  possible_cut = c()
-  for(o_o in 1:(dim(gm_obs)[1]-1)){
-    for(o_0 in (o_o+1):dim(gm_obs)[1]){
-      possible_cut = c(possible_cut, (gm_obs[o_o,1] + gm_obs[o_0,1]) / 2 + sigma2_tmp * log(gm_obs[o_o,2] / gm_obs[o_0,2]) / (gm_obs[o_0,1] - gm_obs[o_o,1]))
-    }
+  # get likelihood
+  likelihood_group = vector(mode = 'list', length = length(gm))
+  for(o_o in seq(gm)){
+    likelihood_group[[o_o]] = local({ # 这个local函数有点意思，正是我所需要的
+      o_o <- o_o # 在这一步强制把o_o刷成了对应的值
+      function(x){
+        prior[o_o] * exp(-(x - gm[o_o])^2 / 2 / sigma2_tmp)
+      }
+    })
   }
+
+  # 函数的加法
+  add_fun <- function(a,b){
+    force(a)
+    force(b)
+    function(x){a(x) + b(x)}
+  }
+  # This function create a function from linear combination of functions
+  linear_combn_fun <- function(scaleR,functioN){
+    # ans_fun <- function(x){0}
+    functioN_new = functioN
+    for(i in seq(scaleR)){
+      functioN_new[[i]] <- local({
+        i <- i
+        function(x){
+          scaleR[i] * functioN[[i]](x)
+        }
+      })
+    }
+
+    # 长度为1的话直接退出
+    if(length(scaleR) == 1){
+      return(functioN_new[[1]])
+    }
+
+    expression_exec = paste('functioN_new[[1]]',paste0('%>% add_fun(functioN_new[[',2:length(scaleR),']])',collapse = ' '))
+    return(eval(parse(text = expression_exec)))
+  }
+
+
+  # get cost function
+  cost_function = vector(mode = 'list', length = length(gm))
+  for(o_o in seq(gm)){
+    cost_function[[o_o]] = linear_combn_fun(misclass_cost[o_o,],likelihood_group)
+  }
+
+  ### uniroot 函数可能不太好写，决定从range取1000个点，插值法。
+  # uniroot(function(o_o) cost_function[[1]](o_o) - cost_function[[2]](o_o), interval = range(x))
+  # uniroot(function(o_o) cost_function[[1]](o_o) - cost_function[[3]](o_o), interval = range(x))
+  # uniroot(function(o_o) cost_function[[2]](o_o) - cost_function[[3]](o_o), interval = range(x))
+  # h <- Vectorize(cost_function[[1]])
+  # curve(h, from = 0, to = 40)
+  # h <- Vectorize(cost_function[[2]])
+  # curve(h, from = 0, to = 40, col = '2', add = TRUE)
+  # h <- Vectorize(cost_function[[3]])
+  # curve(h, from = 0, to = 40, col = '3', add = TRUE)
+
+
+
+  gm_obs = cbind(gm[!is.nan(gm)],prior) # 那些空组就去掉了
+  gm_obs = gm_obs[order(gm_obs[,1]),] # 从小到大排序
+
+
+  # # 先找到choose k 2个交点
+  # possible_cut = c()
+  # for(o_o in 1:(dim(gm_obs)[1]-1)){
+  #   for(o_0 in (o_o+1):dim(gm_obs)[1]){
+  #     possible_cut = c(possible_cut, (gm_obs[o_o,1] + gm_obs[o_0,1]) / 2 + sigma2_tmp * log(gm_obs[o_o,2] / gm_obs[o_0,2]) / (gm_obs[o_0,1] - gm_obs[o_o,1]))
+  #   }
+  # }
   # 下面是每个LDA的cut
   # print(possible_cut)
-  candidate_cut = sort(unique(possible_cut)[range(x)[1] < unique(possible_cut) & unique(possible_cut) < range(x)[2]])
-  if(length(candidate_cut)==0){ # 全部的分割点都在外面，停止分割
-    return(NULL)
-  }
+  # 第一步看看交点是否在range里面
+  # candidate_cut = sort(unique(possible_cut)[range(x)[1] < unique(possible_cut) & unique(possible_cut) < range(x)[2]])
+  # if(length(candidate_cut)==0){ # 全部的分割点都在外面，停止分割
+  #   return(NULL)
+  # }
+  # 取交点的中点进行插值计算，因为在整个区间之内，最小值来自于同一组
+  # 通过拿到最小值，就知道预测结果了
+  candidate_cut = seq(from = range(x)[1], to = range(x)[2], length.out = 1000)
   plug_in_value = sort(c(range(x),candidate_cut))[-length(candidate_cut)-2] + diff(sort(c(range(x),candidate_cut)))/2
   # print(plug_in_value)
-  res_tmp = sapply(1:dim(gm_obs)[1], function(o_o) (plug_in_value - gm_obs[o_o,1])^2 - 2 * sigma2_tmp * log(gm_obs[o_o,2]))
+  # res_tmp = sapply(1:dim(gm_obs)[1], function(o_o) (plug_in_value - gm_obs[o_o,1])^2 - 2 * sigma2_tmp * log(gm_obs[o_o,2]))
   # print(res_tmp)
+  res_tmp = sapply(1:dim(gm_obs)[1], function(o_o) cost_function[[o_o]](plug_in_value))
   res_tmp = apply(res_tmp,1,which.min)
 
+  # res_tmp如果存在连续的两个数字相同，这代表了中间有一个无效划分
+  # 所以将上一步产生的可能值重新跑一下，去掉无效划分
   final_cut = c() # 真正的cut
   for(o_o in 2 : length(res_tmp)){
     if(res_tmp[o_o] != res_tmp[o_o-1]){
@@ -334,21 +412,68 @@ split_fact_uni <- function(x,y, prior){
   if(length(final_cut) == 0){
     return(NULL)
   }
-  # 最后检查一下有没有空组
-  final_cut_pro = c()
-  test_tmp = table(cut(x,breaks = c(-Inf,final_cut,Inf)))
+
+  # 最后检查一下有没有空组，因为有些时候我们插的值确实体现了有效划分
+  # 但是数据中不存在那一段区间的点，会导致划分出来的树有一个节点数据量为0
+  # 1/16/2022 发现有点问题，我们应该检查是否达到了minimum node的要求
+  # 并且对于不满足的划分，我们应该和左右的合并来达成要求，直到所有划分都被砍掉了
+  # final_cut_pro = c()
+  # test_tmp = table(cut(x,breaks = c(-Inf,final_cut,Inf)))
+  # # print(test_tmp)
+  # for(o_o in seq(final_cut)){
+  #   if(test_tmp[o_o] != 0){
+  #     final_cut_pro = c(final_cut_pro, final_cut[o_o])
+  #   }
+  # }
+  # if(test_tmp[length(test_tmp)] == 0){
+  #   final_cut_pro = final_cut_pro[-length(final_cut_pro)]
+  # }
+  # if(length(final_cut_pro) == 0){
+  #   return(NULL)
+  # }
+  final_cut_pro = final_cut
   # print(test_tmp)
-  for(o_o in 1 : length(final_cut)){
-    if(test_tmp[o_o] != 0){
-      final_cut_pro = c(final_cut_pro, final_cut[o_o])
+  o_o = 1
+  while(o_o <= length(final_cut_pro)){
+    if(o_o == 1){
+      # 初始化分组信息
+      test_tmp = as.numeric(cut(x,breaks = c(-Inf,final_cut,Inf))) # 强制变成integer
+    }
+    # 如果最大组不大于最低要求的话，要和右面的组合并
+    # print(table(y[which(test_tmp == o_o)]) >= min_nsize)
+    if(sum(table(y[which(test_tmp == o_o)]) >= min_nsize) < 1){
+      if(length(final_cut_pro) == 1){ # 如果被切的一个也不剩了，停止划分
+        return(NULL)
+      }
+      final_cut_pro = final_cut_pro[-o_o]
+      o_o = 1
+    }else{
+      o_o = o_o + 1
     }
   }
-  if(test_tmp[length(test_tmp)] == 0){
+
+  # 实践中发现最右面的组有可能不满足min_size的要求
+  if(sum(table(y[which(test_tmp == o_o)]) >= min_nsize) < 1){
+    if(length(final_cut_pro) == 1){ # 如果被切的一个也不剩了，停止划分
+      return(NULL)
+    }
     final_cut_pro = final_cut_pro[-length(final_cut_pro)]
   }
-  if(length(final_cut_pro) == 0){
-    return(NULL)
-  }
+
+
+
+  # for(o_o in seq(final_cut)){
+  #   if(test_tmp[o_o] != 0){
+  #     final_cut_pro = c(final_cut_pro, final_cut[o_o])
+  #   }
+  # }
+  # if(test_tmp[length(test_tmp)] == 0){
+  #   final_cut_pro = final_cut_pro[-length(final_cut_pro)]
+  # }
+  # if(length(final_cut_pro) == 0){
+  #   return(NULL)
+  # }
+
   return(final_cut_pro)
 }
 

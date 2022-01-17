@@ -138,7 +138,7 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
     if(Jt == 1 | node_tmp$covs == 0){ # If all of the data belongs to one class, or there is no covariates left
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 既然分不下去了，那就只能预测众数
       node_tmp$pred_method = 'mode'
-      node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
+      node_tmp$node_pred = levels(response)[which.max(node_tmp$portion)]
       # 这里要改成prior版本的，带misclassification cost
       node_saved[[node_tmp$idx]] = list(node_tmp)
       next # 出口1
@@ -158,7 +158,7 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
     if(node_tmp$covs == 0){ # If there is no covariates left
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 既然分不下去了，那就只能预测众数
       node_tmp$pred_method = 'mode'
-      node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion)]
+      node_tmp$node_pred = levels(response)[which.max(node_tmp$portion)]
       node_saved[[node_tmp$idx]] = list(node_tmp)
       next # 出口2
     }
@@ -171,7 +171,7 @@ tree_growing_fact <- function(response, dat, prior, max_level, min_nsize, select
     # ans = pred_LDA(dat_tmp, response_tmp, prior)
     node_tmp$misclass = node_tmp$size - max(node_tmp$portion) # 这个信息会一直保留，因为最后需要展示在图上
     # node_tmp$pred_method = ans[[1]]
-    # node_tmp$lda_pred = ans[[2]]
+    # node_tmp$node_pred = ans[[2]]
 
     # 判断是否到达了 maximum level，和minimum node size，到达了便退出
     # FACT

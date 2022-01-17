@@ -56,39 +56,48 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   dat = data[,sapply(labels(terms(formula, data = data)),function(x) which(x == colnames(data)))]
   ###
 
+  # 找到所有变量的种类
+  cov_class = sapply(dat,class) %in% c('numeric', 'integer') # T表示是ordinal
+
   # FACT 将离散变量转为LD1
+  # 现在的处理方式是转成数字之后再也不转回去了
+  # 因此我们需要在预测的时候也使用数字
+  # 只在画图的时候变成字符
+  cat_trans = NULL
   if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
-    cov_class = sapply(dat,class) %in% c('numeric', 'integer')
+    # cov_class = sapply(dat,class) %in% c('numeric', 'integer')
     if(all(cov_class)){
       cov_class = NA
     }else{
-      cat_tras_saved = vector("list",dim(dat)[2])
+      cat_trans = vector("list",dim(dat)[2])
       for(o_o in which(!cov_class)){
         x_x = fact_cat(dat[,o_o],response, prior)
         dat[,o_o] = x_x[[1]] # 拿回变换好的变量
-        cat_tras_saved[[o_o]] = x_x[[2]] # 保存变换矩阵
-        names(cat_tras_saved)[o_o] = colnames(dat)[o_o]
+        cat_trans[[o_o]] = x_x[[2]] # 保存变换矩阵
+        names(cat_trans)[o_o] = colnames(dat)[o_o]
       }
+      cat_trans = cat_trans[!is.na(names(cat_trans))]
     }
   }
+
+
+# 方法预处理 -------------------------------------------------------------------
+
+# 未来这里可以添加很多个参数：
+  # 二叉树，还是多叉树
 
 
 # Model 部分 ----------------------------------------------------------------
-  fit = tree_growing(response, dat, prior, max_level, min_nsize, select_method, split_method, F0, get_size)
+  fit = tree_growing(response, dat, prior, misclass_cost, max_level, min_nsize, select_method, split_method, F0, get_size, cov_class, cat_trans)
   # fit = tree_growing_fact(response, dat, prior, max_level, min_nsize, select_method)
-  # prepare for the imformation in output
-  fit$split_method = split_method # for prediction
-  fit$misclass_cost = misclass_cost
 
 
-
-
-  # FACT 离散变量表
-  if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
-    if(!is.na(sum(cov_class))){
-      fit$cat_trans = cat_tras_saved
-    }
-  }
+  # # FACT 离散变量表
+  # if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
+  #   if(!is.na(sum(cov_class))){
+  #     fit$cat_trans = cat_trans
+  #   }
+  # }
 
 # Pruning -----------------------------------------------------------------
   if(pmatch(get_size, c('CV', 'pre-stopping')) == 2){
@@ -109,7 +118,11 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   for(i in 1:cv_number){
     r_tmp = which(idx_CV == i) # 找出第i组的行index
     # 这里有个tree_growing function，需要随时跟着tree_growing的发展来发展
-    cv_fit[[i]] = tree_growing(response[-r_tmp], dat[-r_tmp,], prior, max_level, min_nsize, select_method, split_method, F0, get_size) # 找出母树
+    cv_fit[[i]] = tree_growing(response[-r_tmp], dat[-r_tmp,], prior, misclass_cost, max_level, min_nsize, select_method, split_method, F0, get_size, cov_class, cat_trans) # 找出母树
+    ### min_size 好像出了一些问题
+    # for(o_o in seq(length(cv_fit[[i]]$treenode))){
+    #   print(cv_fit[[i]]$treenode[[o_o]][[1]]$portion)
+    # }
     cv_fit[[i]] = traverse(cv_fit[[i]]) # update alpha
   }
   # plotall(cv_fit[[2]])
@@ -162,7 +175,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
 
 
 
-tree_growing <- function(response, dat, prior, max_level, min_nsize, select_method, split_method, F0, get_size){
+tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsize, select_method, split_method, F0, get_size, cov_class, cat_trans){
   # Model 部分 ----------------------------------------------------------------
   col_idx = 1:ncol(dat)
   # 对于像FACT来说的多叉树，使用这种方式排列树结构会使得运算效率更高（没人想遍历一个六百万的稀疏列表）
@@ -170,6 +183,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
   idx_next = 1L
   queue = list(list(1:nrow(dat),col_idx,idx_next,1L, 0L)) # Used to save the current intermediate nodes
   c_name = colnames(dat) # Used to denote the criteria
+
   node_saved = list() # Save the nodes for printing the tree
   Nj = table(response) # 获得总体proportion，为了计算每个节点的prior
   no_j = length(unique(response)) # 共有多少类
@@ -207,7 +221,11 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
     # }
     node_tmp$portion = as.numeric(table(response_tmp))
     node_tmp$pred_method = 'mode' # 默认用众数来估计
-    node_tmp$lda_pred = levels(response)[which.max(node_tmp$portion * prior)] # 这个之后反正可以再改
+    # node_tmp$node_pred = levels(response)[which.max(node_tmp$portion * prior)] # 这个之后反正可以再改
+    # node_tmp$node_pred = levels(response)[which.min(misclass_cost %*% (node_tmp$portion * prior))] # 这个之后反正可以再改
+    node_tmp$node_pred = mis_cost_cal(proportion = node_tmp$portion * prior, misclass_cost = misclass_cost,
+                                     method = 'pred', level = levels(response_tmp)) # 这个之后反正可以再改
+
     ###
 
     ### 出口1: 无X，或者所有Y都相同
@@ -246,7 +264,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
       ans = pred_LDA(dat_tmp, response_tmp, prior)
       node_tmp$misclass = ans[[3]] # 这个信息会一直保留，因为最后需要展示在图上
       node_tmp$pred_method = ans[[1]]
-      node_tmp$lda_pred = ans[[2]]
+      node_tmp$node_pred = ans[[2]]
     }else if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
       # FACT
       node_tmp$misclass = node_tmp$size - max(node_tmp$portion)
@@ -259,7 +277,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
       if(node_tmp$idx >= 2 ** (max_level-1) | node_tmp$size < min_nsize){
         # ans = pred_LDA(dat_tmp, response_tmp, prior)
         # node_tmp$pred_method = ans[[1]]
-        # node_tmp$lda_pred = ans[[2]]
+        # node_tmp$node_pred = ans[[2]]
         node_saved[[node_tmp$idx]] = list(node_tmp)
         next # 出口3
       }
@@ -322,8 +340,8 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
           # prior calculation
           pjt = prior * node_tmp$portion / Nj
           pjgt = pjt / sum(pjt) # standardize
-          node_error_rate = sum(pjt) - max(pjt) # 这里要用绝对错误，而不是相对错误
-          threshold = split_fact_uni(dat_tmp[,c_split],response_tmp, pjgt)
+          node_error_rate = mis_cost_cal(proportion = pjt, misclass_cost = misclass_cost) # 这里要用绝对错误，而不是相对错误
+          threshold = split_fact_uni(dat_tmp[,c_split],response_tmp, pjgt, misclass_cost, min_nsize)
           # node_tmp$split_cri = threshold
           # FACT
           if(is.null(threshold)){
@@ -334,7 +352,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
             next # 出口4
           }
 
-          node_tmp$split_cri = round(threshold,1) # 只保留一位小数
+          node_tmp$split_cri = round(threshold,2) # 只保留一位小数
 
           # 下面该判断是否接着分
           # 如果是Dispersion来的，我们需要将原来的数据变回去，同时修改split
@@ -389,7 +407,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
             for(o_o in 1:no_class){
               pjt = prior * table(response_tmp[idx_children[[o_o]]]) / Nj
               # pjgt = pjt / sum(pjt)
-              children_error_rate[o_o] = sum(pjt) - max(pjt)
+              children_error_rate[o_o] = mis_cost_cal(proportion = pjt, misclass_cost = misclass_cost)
             }
             if(sum(children_error_rate) >= node_error_rate){ # 这里有点问题 # ？？？啥问题
               # cat('NA happens there 2:', node_tmp$idx,'\n')
@@ -413,7 +431,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
             # 进行正常的纯linear split
             # Situation: 1
             cat('Linear Combination Scenario 1\n')
-            ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
+            ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size)
             if(is.null(ephemeral)){
               node_saved[[node_tmp$idx]] = list(node_tmp)
               next # 出口
@@ -438,7 +456,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
               # univariate split, on y average
               # Situation: 2
               cat('Linear Combination Scenario 2\n')
-              ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size, simple_mean = TRUE)
+              ephemeral = fact_univar(dat_tmp_y[,c_split], response_tmp, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size, simple_mean = TRUE)
               if(is.null(ephemeral)){
                 node_saved[[node_tmp$idx]] = list(node_tmp)
                 next # 出口
@@ -461,7 +479,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
                 # print(levene_sig)
                 # print(dim(dat_tmp_y))
                 # print(dim(dat_tmp_w))
-                ephemeral = fact_univar(dat_tmp_w[,levene_sig], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
+                ephemeral = fact_univar(dat_tmp_w[,levene_sig], response_tmp, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
                   next # 出口
@@ -481,7 +499,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
                 dat_tmp_polar = nsphere(dat_tmp_w)
                 F_stat = apply(dat_tmp_polar,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
                 c_split = which.max(F_stat)
-                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
+                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
                   next # 出口
@@ -502,7 +520,7 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
                 dat_tmp_polar[,levene_sig] = nsphere(dat_tmp_polar[,levene_sig])
                 F_stat = apply(dat_tmp_polar,2,function(x) var_select_all(x,response_tmp, node_tmp$size, Jt, select_method))
                 c_split = which.max(F_stat)
-                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, Nj, min_nsize, get_size)
+                ephemeral = fact_univar(dat_tmp_polar[,c_split], response_tmp, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size)
                 if(is.null(ephemeral)){
                   node_saved[[node_tmp$idx]] = list(node_tmp)
                   next # 出口
@@ -600,18 +618,19 @@ tree_growing <- function(response, dat, prior, max_level, min_nsize, select_meth
 
   res = list()
   res$formula = formula
+  res$select_method = select_method
   res$treenode = node_saved # 所有节点信息
-  res$dat = dat # 存储源数据——以后要修改，否则占地面积过大
+  res$cov_class = cov_class
+  res$cat_trans = cat_trans
+  # res$dat = dat # 存储源数据——以后要修改，否则占地面积过大
   res$cnames = colnames(dat) # 存储变量名，用来日后的排序
   res$prior = prior
   res$response = response # 为了后面的画图
+  # prepare for the imformation in output
+  res$split_method = split_method # for prediction
+  res$misclass_cost = misclass_cost
   cat('The LDA tree is completed.\n')
   return(res)
 }
-
-
-
-
-
 
 

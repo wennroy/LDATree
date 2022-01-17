@@ -8,6 +8,9 @@
 #'
 #' @examples
 predict_LT <- function(fit, x_new){
+  # 这个function只支持一行的输入
+  # 如果要实现多行的输入，要使用apply系列的函数
+
   # 别假设了，先把test变量的位置变成和原数据一模一样
   cname_save = fit$cnames
   if(is.null(dim(x_new))){ # 如果传进来的东西是个vector
@@ -32,18 +35,17 @@ predict_LT <- function(fit, x_new){
   # 先找到一个最像自己的伙伴, Lazy启动
   friend_list = NULL
   ### 一个距离算法
-  while(1){
-    # print(tmp_node)
+  repeat{
     node_tmp = fit$treenode[[tmp_node]][[1]]
-    # print(node_tmp$idx)
     # if(is.null(node_tmp$leaves)){
     if(any(is.na(node_tmp$children))){
       # 到了叶子结点
       if(node_tmp$pred_method == 'mode'){
         # 用众数估计
-        return(node_tmp$lda_pred)
+        return(node_tmp$node_pred)
       }else{
         # fit LDA
+        # 这个循环内的代码可以变一变
         if(any(is.na(x_new))){
           # 如果有NA，用最像的老哥填充
           idx_NA = which(is.na(x_new))
@@ -63,19 +65,19 @@ predict_LT <- function(fit, x_new){
           }
         }
         # 扔进LDA
-        return(predict(node_tmp$lda_pred, newdata = x_new)$class)
+        return(predict(node_tmp$node_pred, newdata = x_new)$class)
       }
-    }else{
-      # 在中间节点，决定下一步往哪里走
+    }else{ # 在中间节点，决定下一步往哪里走
       if(pmatch(fit$split_method, c('univariate', 'linear')) == 1){
         inline_x = x_new[1,node_tmp$split_idx] # 即将等待划分的X
+        dim(inline_x) <- NULL # 因经常弄出来一个矩阵，导致后面的代码跑不动
       }else{
-        cat('Node Index:', node_tmp$idx, '\n')
+        # cat('Node Index:', node_tmp$idx, '\n')
         # print(node_tmp$linear_split_trans)
-        cat('idx_c using:', node_tmp$idx_c, '\n')
+        # cat('idx_c using:', node_tmp$idx_c, '\n')
         inline_x = node_tmp$linear_split_trans(x_new[1,node_tmp$idx_c])[,node_tmp$split_idx]
       }
-      if(class(node_tmp$split_cri) %in% c('numeric', 'integer')){
+      if(fit$cov_class[node_tmp$split_idx]){
         # continous variable
         if(!is.na(inline_x)){
           # tmp_node = 2*tmp_node + ifelse(inline_x <= node_tmp$split_cri, 0, 1)
@@ -108,8 +110,21 @@ predict_LT <- function(fit, x_new){
         # Categorical Variable
         if(!is.na(inline_x)){
           # 是new level的话也会被分到右面
-          tmp_node = 2*tmp_node + ifelse(inline_x %in% node_tmp$split_cri, 0, 1)
-        }else{
+          # tmp_node = 2*tmp_node + ifelse(inline_x %in% node_tmp$split_cri, 0, 1)
+          if(fit$select_method == 'FACT'){
+            # 对于FACT来说，我们在过程中一直保持numerical，直到最后画图再变回去。
+            # FACT 对于自己内部CV剪枝的时候，cat也还是numeric，只有在预测新数据的时候，
+            # FACT才需要做cat到num的转换
+            if(!(class(inline_x) %in% c('numeric', 'integer'))){
+              cat_trans_tmp = fit$cat_trans[[fit$cnames[node_tmp$split_idx]]]
+              inline_x = cat_trans_tmp[cat_trans_tmp[,1] == inline_x,2]
+            }
+            tmp_node = node_tmp$children[which.min(inline_x > c(node_tmp$split_cri,Inf))]
+            # tmp_node = 2*tmp_node + ifelse(inline_x %in% node_tmp$split_cri, 0, 1)
+          }else{
+            stop('Prediction for other methods is still under development')
+          }
+        }else{ # 如果是NA的话
           if(!is.na(node_tmp$split_na_action)){
             # 如果划分的时候包含了NA的情况
             tmp_node = 2*tmp_node + ifelse(node_tmp$split_na_action, 0, 1)
@@ -136,3 +151,11 @@ predict_LT <- function(fit, x_new){
     }
   }
 }
+
+
+
+
+
+
+
+

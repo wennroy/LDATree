@@ -174,10 +174,13 @@ plotall_fact <- function(fit){
       group_plot[idx_curr] = NA # 中间节点不分组不涂色
     }else{ # 如果是叶子节点，要提供的信息：预测类别，各类具体，正确/总数
       size_plot[idx_curr] = log(id_tmp$size)
-      group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion * fit$prior)]
+      # group_plot[idx_curr] = levels(response)[which.max(id_tmp$portion * fit$prior)]
+      group_plot[idx_curr] = id_tmp$node_pred
       text_zhanbi = paste(id_tmp$portion, collapse = ' / ')
       node_idx_plot = paste('Node',id_tmp$idx)
-      text_lda = paste(id_tmp$size - id_tmp$misclass, id_tmp$size, sep = ' / ')
+      # text_lda = paste(id_tmp$size - id_tmp$misclass, id_tmp$size, sep = ' / ')
+      text_lda = paste(id_tmp$portion[which(levels(fit$response) == id_tmp$node_pred)],
+                       id_tmp$size, sep = ' / ')
       label_plot[idx_curr] = paste(group_plot[idx_curr], text_zhanbi,
                                    text_lda,node_idx_plot, sep = "\n")
 

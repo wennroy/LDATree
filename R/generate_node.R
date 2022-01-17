@@ -32,7 +32,7 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA, layer = NA, parent = 
     linear_split_trans = NA, # for linear combination split, record the reverse function for prediction
     # prior = NA, # group prior for each class, 目前感觉没啥用
     resub_error = NA, # R(T): for CV pruning
-    lda_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测
+    node_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测
   )
   # 孩子节点的个数：几叉树
   if(pmatch(select_method, c('LDATree', 'FACT')) == 1){
@@ -69,7 +69,7 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA, layer = NA, parent = 
 #     pred_method = NA, #
 #     # prior = NA, # group prior for each class, 目前感觉没啥用
 #     resub_error = NA, # R(T): for CV pruning
-#     lda_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测
+#     node_pred = NA # Function 用来预测新进来的数据如果不走了，原地预测
 #   )
 #   # Set the name for the class
 #   class(me) <- append(class(me), "Treenode")

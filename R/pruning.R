@@ -10,6 +10,7 @@ traverse <- function(fit){
   # 修改一下这个函数，把二叉树和多叉树结合在一起
   # 通过children来取
   node_saved = fit$treenode
+  misclass_cost = fit$misclass_cost
   id_tmp = length(node_saved) # 倒叙遍历
   while(id_tmp >= 1){
     if(!is.null(node_saved[[id_tmp]])){
@@ -27,8 +28,10 @@ traverse <- function(fit){
         #   node_saved[[node_tmp$idx*2 + 1]][[1]]$resub_error
         node_tmp$resub_error = Reduce(sum, sapply(node_tmp$children,function(o_o) node_saved[[o_o]][[1]]$resub_error))
 
-        node_tmp$alpha = (node_tmp$misclass - node_tmp$resub_error) /
-          (length(node_tmp$leaves) - 1)
+        # node_tmp$alpha = (node_tmp$misclass - node_tmp$resub_error) /
+        #   (length(node_tmp$leaves) - 1)
+        node_tmp$alpha = (mis_cost_cal(proportion = node_tmp$portion,misclass_cost = misclass_cost) -
+                            node_tmp$resub_error) / (length(node_tmp$leaves) - 1)
         # alpha has to be positive number
         # node_tmp$alpha = max(0, node_tmp$alpha,node_saved[[node_tmp$idx*2]][[1]]$alpha,
         #                      node_saved[[node_tmp$idx*2 + 1]][[1]]$alpha, na.rm = T) # monotonicity
@@ -36,7 +39,9 @@ traverse <- function(fit){
         # print(children_alpha)
         node_tmp$alpha = max(0, node_tmp$alpha,max(c(-Inf,children_alpha), na.rm = TRUE), na.rm = TRUE) # monotonicity
       }else{
-        node_tmp$resub_error = node_tmp$misclass
+        # node_tmp$resub_error = node_tmp$misclass
+        # print(node_tmp$portion)
+        node_tmp$resub_error = mis_cost_cal(proportion = node_tmp$portion,misclass_cost = misclass_cost)
       }
       node_saved[[id_tmp]] = list(node_tmp)
     }

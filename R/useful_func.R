@@ -239,13 +239,14 @@ PCA_Y <- function(datx, response_tmp, beta_ratio = 0.05, situation = 1){
 # 浓缩成一个函数
 # 输出结果包括：是否继续划分，如果是的话，返回cut point, idx_children, no_class
 
-fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, get_size, simple_mean = FALSE){
+fact_univar <- function(x, y, node_tmp, prior, misclass_cost, Nj, min_nsize, get_size, simple_mean = FALSE){
   if(!simple_mean){
     # prior calculation
     pjt = prior * node_tmp$portion / Nj
     pjgt = pjt / sum(pjt) # standardize
-    node_error_rate = sum(pjt) - max(pjt) # 这里要用绝对错误，而不是相对错误
-    threshold = split_fact_uni(x,y, pjgt)
+    # node_error_rate = sum(pjt) - max(pjt) # 这里要用绝对错误，而不是相对错误
+    node_error_rate = mis_cost_cal(proportion = pjt, misclass_cost = misclass_cost)
+    threshold = split_fact_uni(x,y, pjgt, misclass_cost, min_nsize)
     if(is.null(threshold)){
       # node_saved[[node_tmp$idx]] = list(node_tmp)
       return(NULL) # 停止分割
@@ -285,7 +286,8 @@ fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, get_size, simple_m
     for(o_o in 1:no_class){
       pjt = prior * table(y[idx_children[[o_o]]]) / Nj
       # pjgt = pjt / sum(pjt)
-      children_error_rate[o_o] = sum(pjt) - max(pjt)
+      # children_error_rate[o_o] = sum(pjt) - max(pjt)
+      children_error_rate[o_o] = mis_cost_cal(proportion = pjt, misclass_cost = misclass_cost)
     }
 
     if(sum(children_error_rate) >= node_error_rate){
@@ -299,6 +301,28 @@ fact_univar <- function(x, y, node_tmp, prior, Nj, min_nsize, get_size, simple_m
   return(list(node_tmp, idx_children, no_class))
 }
 
+############
+
+# 这个函数的目的是给定各个组的proportion
+# 以及misclass cost，返回一个total cost，和预测的组
+mis_cost_cal <- function(proportion, misclass_cost, method = 'cost', level = NULL){
+  # method = cost, pred, both
+  # 这里有个robustness的问题，需要proportion是带着names（level）的
+
+  # 标准化proportion
+  # 这里还真不能标准化，因为小节点的错误率确实小
+  # proportion = proportion / sum(proportion)
+  cost_tmp = misclass_cost %*% proportion
+  pred = level[which.min(cost_tmp)]
+  cost = min(cost_tmp)
+  if(method == 'cost'){
+    return(cost)
+  }else if(method == 'pred'){
+    return(pred)
+  }else if(method == 'both'){
+    return(list(cost = cost, pred = pred))
+  }
+}
 
 ############
 
