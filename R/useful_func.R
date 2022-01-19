@@ -124,56 +124,23 @@ within_check_helper <- function(y,x){
   return(TRUE)
 }
 
-naive_impute <- function(x){
-  for(i in 1:ncol(x)){
-    if(anyNA(x[,i])){
-      if(class(x[,i]) %in% c('numeric', 'integer')){
-        x[which(is.na(x[,i])),i] = mean(x[,i], na.rm = T)
-      }else{
-        x[which(is.na(x[,i])),i] = getmode(x[,i])
-      }
-    }
-  }
-  return(x)
-}
-
 getmode <- function(v) {
   uniqv <- unique(v)
   return(uniqv[which.max(tabulate(match(v, uniqv)))])
-}
-
-best_friend <- function(x_new, x_original){ # 找到最像的朋友们，按相似度从高到底排序
-  # check if they have the same dimension
-  # 这里以后补充一个get_error function for robustness
-  # 还要加一个new level的处理方法
-
-  idx_keep = which(!is.na(x_new))
-  x_new_tmp = x_new[idx_keep]
-  x_original_tmp = x_original[idx_keep]
-  # 删去原数据中NA的那些行
-  idx_notNA = which(apply(x_original_tmp,1, function(x) !any(is.na(x))))
-  x_original_tmp = x_original_tmp[idx_notNA,]
-  # data check
-  # 马氏距离：对于factor，变成了one-hot-encoding之后，cov矩阵不可逆
-  # 以后采用标准化之后的欧氏距离
-  # 为了防止dummyX使得biased towards factor，我们先变一下, binary
-  x_combined = rbind(x_new_tmp,x_original_tmp)
-  for(i in 1:ncol(x_combined)){
-    if(!class(x_combined[,i]) %in% c('numeric', 'integer')){
-      x_combined[,i] = (x_combined[,i] == x_combined[1,i]) + 0
-    }
-  }
-  x_combined = scale(x_combined,center = TRUE,scale = TRUE)
-  dist_tmp = apply(x_combined,1,function(x) dist(rbind(x_combined[1,],x)))
-  return(idx_notNA[order(dist_tmp[-1])]) # 返回一个距离的排序
 }
 
 # FACT cat -> num
 
 # x <- dat[,o_o]
 # y = response
+# x = dat$CRIM
+# y = dat$MV
+# prior = rep(1/3,3)
 
 fact_cat <- function(x,y, prior){
+  x_out = x
+  idx_keep = !is.na(x) & !is.na(y) # 为了防止NA捣乱，毕竟这个对照表不需要全部数据也能做
+  x = x[idx_keep]; y = y[idx_keep]
   dummy_matrix = model.matrix(y~x-1) # Get the dummy matrix
   # fit = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
   # eigen_keep = which(round(fit$values,8) > 0) # 保留正值
@@ -185,16 +152,22 @@ fact_cat <- function(x,y, prior){
   fit_lda = lda(y~., data = new_data, prior = prior) # 这个LDA需要后面的scaling，所以先不变robust了
   X_num = X_dummy %*% fit_lda$scaling[,1] # Project 到 LD1 上面去
   reexp = unique(data.frame(x,X_num)) # 找到x和X_num的对照表
-  return(list(X_num,reexp))
+  x_out[idx_keep] = X_num
+  return(list(x_out,reexp))
 }
 
 PCA_Y <- function(datx, response_tmp, beta_ratio = 0.05, situation = 1){
   # 参数这么多，完全是为了prediction
   d_matrix = as.matrix(datx)
-  fit = princomp(d_matrix, cor = TRUE)
+  # fit = princomp(d_matrix, cor = TRUE)
+  fit = prcomp(d_matrix, center = TRUE, scale. = TRUE)
+  # princomp不能完成行数小于列数的任务，换成了prcomp
+  # princomp$score = prcomp$x
+
   # 这里需要记录下来转移的均值和系数，供之后的prediction使用
   comp_kept = (fit$sdev^2 >= (fit$sdev^2)[1] * beta_ratio)
-  X_d = fit$scores[,comp_kept] # 这个决定了dat_tmp_y有多少列
+  X_d = fit$x[,comp_kept] # 这个决定了dat_tmp_y有多少列
+
 
   # 全在这里面再算一遍，robustness，因为居然出现了y和w维数不同的错误
   # 确实不明白是怎么发生的，但是全在这里面算一遍有助于解决问题
@@ -205,19 +178,19 @@ PCA_Y <- function(datx, response_tmp, beta_ratio = 0.05, situation = 1){
 
   # Function to get y from x
   linear_split_trans <- function(x_new){
-    y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+    y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$rotation[,comp_kept])
     return(y_new)
   }
   if(situation == 3){
     linear_split_trans <- function(x_new){
-      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$rotation[,comp_kept])
       w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
       return(w_new)
     }
     return(linear_split_trans)
   }else if(situation == 4){
     linear_split_trans <- function(x_new){
-      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$rotation[,comp_kept])
       w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
       w_new = nsphere(w_new)
       return(w_new)
@@ -225,7 +198,7 @@ PCA_Y <- function(datx, response_tmp, beta_ratio = 0.05, situation = 1){
     return(linear_split_trans)
   }else if(situation == 5){
     linear_split_trans <- function(x_new){
-      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$loadings[,comp_kept])
+      y_new = matrix((as.matrix(x_new) - fit$center) / fit$scale,1) %*% as.matrix(fit$rotation[,comp_kept])
       w_new = abs(y_new - attr(trans_w_tmp,'scaled:center'))
       w_new[,levene_sig] = nsphere(w_new[,levene_sig])
       return(w_new)

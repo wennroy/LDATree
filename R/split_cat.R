@@ -296,6 +296,7 @@ split_fact_uni <- function(x,y, prior, misclass_cost, min_nsize){
 
   # 这里prior是conditional prior pj|t
   # 所以如果节点中一个也没有，就会有后验概率 = 0
+
   y_level = levels(y)
   if(any(prior == 0)){
     idx_zero = which(prior == 0)
@@ -393,8 +394,8 @@ split_fact_uni <- function(x,y, prior, misclass_cost, min_nsize){
   # }
   # 取交点的中点进行插值计算，因为在整个区间之内，最小值来自于同一组
   # 通过拿到最小值，就知道预测结果了
-  candidate_cut = seq(from = range(x)[1], to = range(x)[2], length.out = 1000)
-  plug_in_value = sort(c(range(x),candidate_cut))[-length(candidate_cut)-2] + diff(sort(c(range(x),candidate_cut)))/2
+  candidate_cut = seq(from = range(x,na.rm = TRUE)[1], to = range(x,na.rm = TRUE)[2], length.out = 1000)
+  plug_in_value = sort(c(range(x,na.rm = TRUE),candidate_cut))[-length(candidate_cut)-2] + diff(sort(c(range(x,na.rm = TRUE),candidate_cut)))/2
   # print(plug_in_value)
   # res_tmp = sapply(1:dim(gm_obs)[1], function(o_o) (plug_in_value - gm_obs[o_o,1])^2 - 2 * sigma2_tmp * log(gm_obs[o_o,2]))
   # print(res_tmp)
@@ -434,13 +435,14 @@ split_fact_uni <- function(x,y, prior, misclass_cost, min_nsize){
   final_cut_pro = final_cut
   # print(test_tmp)
   o_o = 1
+  # cat('final_cut_pro:',final_cut_pro,'\n')
   while(o_o <= length(final_cut_pro)){
     if(o_o == 1){
       # 初始化分组信息
       test_tmp = as.numeric(cut(x,breaks = c(-Inf,final_cut,Inf))) # 强制变成integer
     }
     # 如果最大组不大于最低要求的话，要和右面的组合并
-    # print(table(y[which(test_tmp == o_o)]) >= min_nsize)
+    # print(table(y[which(test_tmp == o_o)]))
     if(sum(table(y[which(test_tmp == o_o)]) >= min_nsize) < 1){
       if(length(final_cut_pro) == 1){ # 如果被切的一个也不剩了，停止划分
         return(NULL)

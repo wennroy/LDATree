@@ -117,7 +117,7 @@ get_mean_se <- function(cv_fit,idx_CV,response,dat,cv_number){
     predict_tmp = character(length(r_tmp))
     for(j in 1:length(r_tmp)){
       # 等之后再修改这里的predict函数
-      predict_tmp[j] = as.character(predict_LT(cv_fit[[i]],x_new = dat[r_tmp[j],]))
+      predict_tmp[j] = as.character(predict_LT(cv_fit[[i]],x_new = dat[r_tmp[j],], dat))
     }
     observe_tmp = response[r_tmp]
     error_record[i] = mean(observe_tmp!=predict_tmp)

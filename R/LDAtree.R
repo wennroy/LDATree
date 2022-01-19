@@ -66,9 +66,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   cat_trans = NULL
   if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
     # cov_class = sapply(dat,class) %in% c('numeric', 'integer')
-    if(all(cov_class)){
-      cov_class = NA
-    }else{
+    if(!all(cov_class)){
       cat_trans = vector("list",dim(dat)[2])
       for(o_o in which(!cov_class)){
         x_x = fact_cat(dat[,o_o],response, prior)
@@ -79,6 +77,21 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
       cat_trans = cat_trans[!is.na(names(cat_trans))]
     }
   }
+
+  ### 关于NA值的填法 ###
+  # 这个得放到FACT变cat为num之后
+  # 因为需要拿到的是数字才可以用mle
+  NA_method = 'imp_when_needed'
+  if(select_method == 'FACT' & split_method == 'linear'){
+    NA_method <- 'imp_at_root'
+  }
+
+  if(any(sapply(dat,function(o_o) any(is.na(o_o))))){ # 如果存在NA
+    if(NA_method == 'imp_at_root'){
+      dat <- class_centroid_impute(dat,response, prior, cov_class, cat_trans)
+    }
+  }
+  ###
 
 
 # 方法预处理 -------------------------------------------------------------------
@@ -267,7 +280,10 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
       node_tmp$node_pred = ans[[2]]
     }else if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
       # FACT
-      node_tmp$misclass = node_tmp$size - max(node_tmp$portion)
+      # node_tmp$misclass = node_tmp$size - max(node_tmp$portion)
+      # 这个misclass暂时先不加prior了
+      node_tmp$misclass <- mis_cost_cal(proportion = node_tmp$portion, misclass_cost = misclass_cost,
+                   level = levels(response_tmp))
     }
 
 
@@ -341,6 +357,17 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
           pjt = prior * node_tmp$portion / Nj
           pjgt = pjt / sum(pjt) # standardize
           node_error_rate = mis_cost_cal(proportion = pjt, misclass_cost = misclass_cost) # 这里要用绝对错误，而不是相对错误
+
+
+
+          ### 检查是否具有缺失值 ###
+          if(any(is.na(dat_tmp[,c_split]))){
+            # 这里对于categorical变量我们没有进行离散化处理
+            # 完全是出于写代码的便利，加上我认为是否离散化区别也不大
+            # 感兴趣的朋友可以自己改
+            dat_tmp <- class_centroid_impute(dat_tmp, y, prior, cov_class, cat_trans)
+          }
+
           threshold = split_fact_uni(dat_tmp[,c_split],response_tmp, pjgt, misclass_cost, min_nsize)
           # node_tmp$split_cri = threshold
           # FACT
@@ -353,6 +380,7 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
           }
 
           node_tmp$split_cri = round(threshold,2) # 只保留一位小数
+          # node_tmp$split_cri = threshold # 只保留一位小数
 
           # 下面该判断是否接着分
           # 如果是Dispersion来的，我们需要将原来的数据变回去，同时修改split
@@ -365,17 +393,59 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
               cat('The dispersion with multi-split is runing!\n')
               dat_tmp[,c_split] = x_split_save
               final_cut = sort(unique(c(x_split_mean-node_tmp$split_cri, x_split_mean + node_tmp$split_cri)))
-              final_cut_pro = c()
-              test_tmp = table(cut(dat_tmp[,c_split],breaks = c(-Inf,final_cut,Inf)))
-              for(o_o in 1 : length(final_cut)){
-                if(test_tmp[o_o] != 0){
-                  final_cut_pro = c(final_cut_pro, final_cut[o_o])
+
+              # 调试的时候出现了一个很神奇的bug
+              # 本来是满足最小节点数的，但是因为dispersion会因为绝对值的关系
+              # 把一个分割拆成两个，就导致不满足最小节点数，所以这里加上这个判别条件
+              # 下面的代码复制于split_fact_uni
+              final_cut_pro = final_cut
+              o_o = 1
+              stop_split_flag = 0
+              while(o_o <= length(final_cut_pro)){
+                if(o_o == 1){
+                  # 初始化分组信息
+                  test_tmp = as.numeric(cut(dat_tmp[,c_split],breaks = c(-Inf,final_cut,Inf))) # 强制变成integer
+                }
+                # 如果最大组不大于最低要求的话，要和右面的组合并
+                # print(table(y[which(test_tmp == o_o)]))
+                if(sum(table(response_tmp[which(test_tmp == o_o)]) >= min_nsize) < 1){
+                  if(length(final_cut_pro) == 1){ # 如果被切的一个也不剩了，停止划分
+                    stop_split_flag = 1
+                    break
+                  }
+                  final_cut_pro = final_cut_pro[-o_o]
+                  o_o = 1
+                }else{
+                  o_o = o_o + 1
                 }
               }
-              if(test_tmp[length(test_tmp)] == 0){
+
+              # 实践中发现最右面的组有可能不满足min_size的要求
+              if(sum(table(response_tmp[which(test_tmp == o_o)]) >= min_nsize) < 1){
+                if(length(final_cut_pro) == 1){ # 如果被切的一个也不剩了，停止划分
+                  stop_split_flag = 1
+                }
                 final_cut_pro = final_cut_pro[-length(final_cut_pro)]
               }
+
+              if(stop_split_flag){
+                node_saved[[node_tmp$idx]] = list(node_tmp)
+                next # 出口4.1
+              }
               node_tmp$split_cri = final_cut_pro
+
+              # final_cut_pro = c()
+              #
+              # test_tmp = table(cut(dat_tmp[,c_split],breaks = c(-Inf,final_cut,Inf)))
+              # for(o_o in 1 : length(final_cut)){
+              #   if(test_tmp[o_o] != 0){
+              #     final_cut_pro = c(final_cut_pro, final_cut[o_o])
+              #   }
+              # }
+              # if(test_tmp[length(test_tmp)] == 0){
+              #   final_cut_pro = final_cut_pro[-length(final_cut_pro)]
+              # }
+              # node_tmp$split_cri = final_cut_pro
             }
           }
 
@@ -620,7 +690,7 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
   res$formula = formula
   res$select_method = select_method
   res$treenode = node_saved # 所有节点信息
-  res$cov_class = cov_class
+  # linear split的话，所有位置都是数字
   res$cat_trans = cat_trans
   # res$dat = dat # 存储源数据——以后要修改，否则占地面积过大
   res$cnames = colnames(dat) # 存储变量名，用来日后的排序
@@ -629,6 +699,13 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
   # prepare for the imformation in output
   res$split_method = split_method # for prediction
   res$misclass_cost = misclass_cost
+
+  if(select_method == 'FACT' & split_method == 'linear'){
+    res$cov_class = cov_class
+  }else{
+    res$cov_class = cov_class > -2
+  }
+
   cat('The LDA tree is completed.\n')
   return(res)
 }
