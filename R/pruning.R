@@ -86,7 +86,7 @@ cut_alpha <- function(fit, alpha_tmp,select_method){
         # 开始重置为叶子结点
         node_saved[node_tmp$left] <- list(NULL) # set NULL 且不删除
         node_saved[node_tmp$right] <- list(NULL)
-        node_tmp$left = node_tmp$right = node_tmp$alpha = node_tmp$criteria =
+        node_tmp$children = node_tmp$left = node_tmp$right = node_tmp$alpha = node_tmp$criteria =
           node_tmp$split_idx = node_tmp$split_cri = node_tmp$split_na_action = NA
         node_tmp['leaves'] = list(NULL)
         node_saved[[list_tmp[i]]] = list(node_tmp)

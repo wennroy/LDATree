@@ -20,6 +20,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
                   cv_number = 10, F0 = 4, misclass_cost = NULL){
   # prior 的顺序需要和data中的levels相同
   # data 是含有response的， dat不含有
+  message("Good morning, my friend. Wish you a good day :-)")
 
 
 # 数据预处理 -------------------------------------------------------------------
@@ -43,7 +44,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   ###
 
   ### 设定Prior
-  prior <-  prior %||% tabulate(response)/nrow(data) # 如果没给prior，用estimated prior
+  prior <-  prior %||% (tabulate(response)/nrow(data)) # 如果没给prior，用estimated prior
   ###
 
   ### 设定misclassification cost
@@ -116,6 +117,8 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   if(pmatch(get_size, c('CV', 'pre-stopping')) == 2){
     return(fit) # Pre-stopping rule 直接回到快乐老家
   }
+  message('0.0 Now, I am about to start the CV !!!')
+  # return(fit)
 
   if(sum(!sapply(fit$treenode,is.null)) == 1){ # 如果只有根节点，直接出局
     return(fit)
@@ -166,19 +169,24 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   k_se = 1
   idx_star = which.min(CV_table$Mean_MSE)
   star_threshold = CV_table$Mean_MSE[idx_star] + k_se * CV_table$SE_Mean[idx_star]
-  alpha_final = CV_table$alpha[which(CV_table$Mean_MSE<=star_threshold)[1]]
+  # 2022/02/22 修改：原来的代码不够robust，因为alpha不一定单调
+  # 切之后的alpha可能会下降
+  # alpha_final = CV_table$alpha[which(CV_table$Mean_MSE<=star_threshold)[1]]
+  # 正着数换成反着数，n+1-t
+  idx_final = dim(CV_table)[1] + 1 - which(CV_table$Mean_MSE<=star_threshold)[1]
   fit$treenode = T_saved
   fit = traverse(fit) # Get the alpha
   CV_table = CV_table[dim(CV_table)[1]:1,]
   tmp = 1
-  while(CV_table$alpha[tmp] <= alpha_final){
+  # while(CV_table$alpha[tmp] <= alpha_final){
+  while(tmp < idx_final){
     fit = cut_alpha(fit,CV_table$alpha[tmp],select_method)
     fit = traverse(fit)
     tmp = tmp + 1
   }
-
   fit$response_name = colnames(model.frame(formula, data))[1]
-  fit$CV_table = CV_table[dim(CV_table)[1]:1,]
+  fit$CV_table = CV_table
+  cat('The pruned tree is completed\n')
   return(fit)
 }
 
@@ -665,6 +673,9 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
           queue = append(queue,list(list(node_tmp$idx_r[idx_left],subnode_index_c, node_tmp$left, node_tmp$layer + 1, node_tmp$idx)))
           node_tmp$right = 2 * node_tmp$idx + 1 # Decide the child index for the current node
           queue = append(queue,list(list(node_tmp$idx_r[idx_right],subnode_index_c, node_tmp$right, node_tmp$layer + 1, node_tmp$idx)))
+          # 为了pruning，要把left and right 都放进 children
+          node_tmp$children = c(node_tmp$left, node_tmp$right)
+
         }
       }else if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
         # FACT
@@ -700,10 +711,12 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
   res$split_method = split_method # for prediction
   res$misclass_cost = misclass_cost
 
-  if(select_method == 'FACT' & split_method == 'linear'){
-    res$cov_class = cov_class
-  }else{
+  # 2022/02/22 下面这个代码看得我一头雾水，what is this?
+  # My guess: somehow univariate 需要全是TRUE才能运行
+  if(select_method == 'FACT' & split_method == 'univariate'){
     res$cov_class = cov_class > -2
+  }else{
+    res$cov_class = cov_class
   }
 
   cat('The LDA tree is completed.\n')

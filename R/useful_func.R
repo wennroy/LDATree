@@ -84,13 +84,15 @@ var_select_LDATree <- function(x, y, Nt, Jt){
 }
 
 var_select_FACT <- function(x, y, Nt, Jt){
-  # if(class(x) %in% c('numeric', 'integer')){
-  #   F_stat = anova(lm(x~y))$`F value`[1] # F-value
-  #   return(F_stat)
-  # }else{
-  #   return(var_select_cat(x,y))
-  # }
   F_stat = anova(lm(x~y))$`F value`[1] # F-value
+  #### 未来的进步空间 ####
+  # 这里其实忽略了对角度theta的特殊求均值和方差的办法
+  # 目前来看影响不是很大，之后可以修正
+  # 对于角度来说，mean的求法是通过变成theta_bar = arctan(sum(sin) / sum(cos))
+  # var = (n-r) / (n-1), while r = sum(sin)^2 + sum(cos)^2 感觉是个很不错的方法
+  # R coding: 可以对于角度的变量加一个attribute，然后设计anova对新的attribute
+  # 有一个不同的F算法，就像print一样
+
   return(F_stat)
 }
 
@@ -138,14 +140,23 @@ getmode <- function(v) {
 # prior = rep(1/3,3)
 
 fact_cat <- function(x,y, prior){
-  x_out = x
+  # x_out = x
+  x_out = rep(NA,length(x))
   idx_keep = !is.na(x) & !is.na(y) # 为了防止NA捣乱，毕竟这个对照表不需要全部数据也能做
   x = x[idx_keep]; y = y[idx_keep]
+  x = droplevels(x) # 有的时候会有空level进来，搞得dummy matrix出现一列0
   dummy_matrix = model.matrix(y~x-1) # Get the dummy matrix
   # fit = eigen(cov(dummy_matrix)) # Eigen decomposition, 为了防止LDA矩阵不可逆
   # eigen_keep = which(round(fit$values,8) > 0) # 保留正值
   # X_dummy = dummy_matrix %*% fit$vectors[,eigen_keep] # Projection
-  fit = princomp(dummy_matrix, cor = TRUE)
+
+  # princomp 也有问题，有时候矩阵的cov会算出来一个1e-16的负数，搞得不可逆
+  # tryCatch( {fit = princomp(dummy_matrix, cor = TRUE)}
+  #           , error = function(e) {write.csv(dummy_matrix,'123.csv',row.names = F)})
+  # +1e-15为了防止princomp出现负数cormat
+  fit = princomp(covmat = cor(dummy_matrix) + diag(1e-15,nrow = dim(dummy_matrix)[2]))
+  fit$scores = scale(dummy_matrix,center = TRUE, scale = TRUE) %*% fit$loadings
+  # fit = princomp(dummy_matrix, cor = TRUE)
   X_dummy = fit$scores[,round(fit$sdev^2,8) > 0, drop = FALSE] # 这个drop = F感觉得变成default，总会报错
   X_dummy = X_dummy[,apply(X_dummy,2,function(x_x) !within_check(y,x_x)), drop = FALSE] # 改掉group constant
   new_data = data.frame(y, X_dummy)
@@ -324,7 +335,7 @@ nsphere <- function(x){
 }
 
 # 自定义infix函数
-`%||%` <- function(lhs, rhs) {
+`%||%` <- function(lhs, rhs){
   if (!is.null(lhs)) {
     lhs
   } else {
@@ -332,6 +343,19 @@ nsphere <- function(x){
   }
 }
 
+# 自定义average recall算法
+average_recall <- function(obs,pre){
+  # every column has a recall
+  # we output the average for all recall
+  level_save <- levels(obs) %||% levels(as.factor(obs))
+  ans = numeric(length(level_save))
+  for(i in seq(level_save)){
+    idx1 = which(obs == level_save[i])
+    idx2 = which(pre == level_save[i])
+    ans[i] = length(intersect(idx1,idx2)) / length(idx1)
+  }
+  return(mean(ans))
+}
 
 
 

@@ -24,6 +24,7 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA, layer = NA, parent = 
     leaves = c(), # 所有后代，可以用是否是NULL来判断是否为叶子结点
     layer = layer, # 用来记录当前的层数
     parent = parent, # 用来记录父亲是谁
+    children = NA, # Children 本来是多叉树的特征
     criteria = NA, # 用来打印在output tree上面
     split_idx = NA, # 用来记录是用哪一个变量进行split，也可以用来判断是否为叶子结点
     split_cri = NA, # Splitting criteria
@@ -41,7 +42,6 @@ generate_node <- function(idx_r = NA,idx_c = NA, idx = NA, layer = NA, parent = 
     me$right = NA # 右孩子节点
   }else if(pmatch(select_method, c('LDATree', 'FACT')) == 2){
     # FACT
-    me$children = NA
     me$dispersion = NA
   }
   # Set the name for the class

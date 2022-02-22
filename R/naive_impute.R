@@ -40,15 +40,33 @@ best_friend <- function(x_new, x_original){ # 找到最像的朋友们，按相�
 
 class_centroid_impute <- function(xs, y, prior, cov_class = NULL, cat_trans = NULL,
                                   type = 'all', x_new = NULL){
+  # 如果传进来的xs有categorical的变量
+  # 要先变成numerical: 这一步的目的是只改变xs
+  # 这个在predict的时候有时候会遇到
+  # 尤其是CV的时候，要同时predict很多行
+  # 2022/02/11 停在这里
+  xs_check = sapply(xs,class)
+  if('factor' %in% xs_check){
+    idx_trans = which(xs_check == 'factor')
+    for(i in idx_trans){
+      trans_table = cat_trans[[colnames(xs)[i]]]
+      xs[,i] = left_join(data.frame(x = xs[,i]),trans_table, by = "x")[,2]
+    }
+  }
+
   # type = c('all', 'single')
   # 这个function以后可以变成一个很通用的function，专治各种missing问题
   # 这个函数有点慢
   print('Imputing data...')
   cov_class <- cov_class %||% (sapply(xs,class) %in% c('numeric', 'integer')) # 如果没给，那就用数据本来的样子
-  # dim(xs) <- dim(xs) %||% c(length(xs),1) # 传进来的如果是一个vector，把它变成matrix，才可以使用apply，但是这个代码有点问题
+  if(is.null(dim(xs))){# 传进来的如果是一个vector，把它变成matrix，才可以使用apply
+    xs = matrix(xs, nrow = length(xs), ncol = 1)
+  }
+
   # 每一列是一个类别
   m_table <- sapply(levels(y), function(x_x) apply(xs,2,function(o_o) mean(o_o[y == x_x], na.rm = TRUE)))
   v_table <- sapply(levels(y), function(x_x) apply(xs,2,function(o_o) var(o_o[y == x_x], na.rm = TRUE)))
+  print('I am running')
   # 如果方差为0，则把方差变成一个比较小的数字
   v_table[v_table < 1e-5] = 1e-5
   # 对于categorical变量，因为数值是离散的，
@@ -102,29 +120,5 @@ class_centroid_impute <- function(xs, y, prior, cov_class = NULL, cat_trans = NU
 
   return(xs)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

@@ -1,0 +1,472 @@
+             GGG   U   U  I  DDDD   EEEE
+            G   G  U   U  I  D   D  E
+            G      U   U  I  D   D  E
+            G  GG  U   U  I  D   D  EEE
+            G   G  U   U  I  D   D  E
+            G   G  U   U  I  D   D  E
+             GGG    UUU   I  DDDD   EEEE
+   
+ GUIDE Classification and Regression Trees and Forests
+ Version 40.0 (Build date: February 12, 2022)      
+ Compiled with NAG Fortran 6.2.0 on macOS Catalina 10.15.7             
+ Copyright (c) 1997-2020 Wei-Yin Loh. All rights reserved.
+ This software is based upon work supported by the U.S. Army Research Office,
+ the National Science Foundation and the National Institutes of Health.
+  
+ This job was started on 02/21/22 at 18:39
+  
+ Classification tree
+ Pruning by cross-validation
+ Data description file: peptide_dsc.txt
+ Training sample file: dat_tmp.csv
+ Missing value code: NA
+ Records in data file start on line 2
+ D variable is bind
+ Number of records in data file: 310
+ Length of longest entry in data file: 6
+ Missing values found in D variable
+ Number of classes: 2
+ Training sample class proportions of D variable bind:
+ Class  #Cases     Proportion
+ 0         121     0.43369176
+ 1         158     0.56630824
+  
+ Summary information for training sample of size 279 (excluding observations with
+ non-positive weight or missing values in d, e, t, r or z variables)
+ d=dependent, b=split and fit cat variable using indicator variables,
+ c=split-only categorical, i=fit-only categorical (via indicators),
+ s=split-only numerical, n=split and fit numerical, f=fit-only numerical,
+ m=missing-value flag variable, p=periodic variable, w=weight
+                                                  #Codes/           
+                                                  Levels/           
+  Column  Name            Minimum      Maximum    Periods   #Missing
+       1  bind       d                                  2
+       2  h1y1       s   -4.500        4.500    
+       3  h1y2       s   -4.500        4.500    
+       4  h1y3       s   -4.500        4.500    
+       5  h1y4       s   -4.500        4.500    
+       6  h1y5       s   -4.500        4.500    
+       7  h1y6       s   -4.500        4.500    
+       8  h1y7       s   -4.500        4.500    
+       9  h1y8       s   -4.500        4.500    
+      10  h2y2       s   -3.400        3.000    
+      11  h2y3       s   -3.400        3.000    
+      12  h2y4       s   -3.400        3.000    
+      13  h2y8       s   -3.400        3.000    
+      14  h2y7       s   -3.400        3.000    
+      15  h2y6       s   -3.400        3.000    
+      16  h2y1       s   -2.500        3.000    
+      17  h2y5       s   -3.400        3.000    
+      18  h3y1       s   -2.530        1.380    
+      19  h3y7       s   -2.530        1.380    
+      20  h3y5       s   -2.530        1.380    
+      21  h3y4       s   -2.530        1.380    
+      22  h3y3       s   -2.530        1.380    
+      23  h3y8       s   -2.530        1.380    
+      24  h3y6       s   -2.530        1.380    
+      25  h3y2       s   -2.530        1.380    
+      26  arom1      s    0.000       0.6667    
+      27  arom2      s    0.000        1.000    
+      28  arom3      s    0.000        1.000    
+      29  arom4      s    0.000        1.000    
+      30  arom5      s    0.000        1.000    
+      31  arom6      s    0.000        1.000    
+      32  arom7      s    0.000        1.000    
+      33  arom8      s    0.000        1.000    
+      34  bulk1      s    0.000       0.9945    
+      35  bulk2      s    0.000        1.000    
+      36  bulk3      s    0.000        1.000    
+      37  bulk4      s    0.000        1.000    
+      38  bulk5      s    0.000        1.000    
+      39  bulk6      s    0.000        1.000    
+      40  bulk7      s    0.000        1.000    
+      41  bulk8      s    0.000        1.000    
+      42  chge1      s    0.000        1.000    
+      43  chge2      s    0.000        1.000    
+      44  chge3      s    0.000        1.000    
+      45  chge4      s    0.000        1.000    
+      46  chge5      s    0.000        1.000    
+      47  chge6      s    0.000        1.000    
+      48  chge7      s    0.000        1.000    
+      49  chge8      s    0.000        1.000    
+      50  dlt1       s   -1.370        1.380    
+      51  dlt2       s   -1.370        1.380    
+      52  dlt3       s   -1.370        1.380    
+      53  dlt4       s   -1.370        1.380    
+      54  dlt5       s   -1.370        1.380    
+      55  dlt6       s   -1.370        1.380    
+      56  dlt7       s   -1.370        1.380    
+      57  dlt8       s   -1.370        1.380    
+      58  ex1        s    1.000        20.00    
+      59  ex2        s    1.000        20.00    
+      60  ex3        s    1.000        20.00    
+      61  ex4        s    1.000        20.00    
+      62  ex5        s    1.000        20.00    
+      63  ex6        s    1.000        20.00    
+      64  ex7        s    1.000        20.00    
+      65  ex8        s    1.000        20.00    
+      66  flex1      s   0.7630E-01    1.000    
+      67  flex2      s    0.000        1.000    
+      68  flex3      s    0.000        1.000    
+      69  flex4      s    0.000        1.000    
+      70  flex5      s    0.000        1.000    
+      71  flex6      s    0.000        1.000    
+      72  flex7      s    0.000        1.000    
+      73  flex8      s    0.000        1.000    
+      74  mass1      s    75.07        181.2    
+      75  mass2      s    75.07        204.2    
+      76  mass3      s    75.07        204.2    
+      77  mass4      s    75.07        204.2    
+      78  mass5      s    75.07        204.2    
+      79  mass6      s    75.07        204.2    
+      80  mass7      s    75.07        204.2    
+      81  mass8      s    75.07        204.2    
+      82  mol1       s    75.07        181.2    
+      83  mol2       s    75.07        204.2    
+      84  mol3       s    75.07        204.2    
+      85  mol4       s    75.07        204.2    
+      86  mol5       s    75.07        204.2    
+      87  mol6       s    75.07        204.2    
+      88  mol7       s    75.07        204.2    
+      89  mol8       s    75.07        204.2    
+      90  pol1       s    0.000        1.000    
+      91  pol2       s    0.000        1.000    
+      92  pol3       s    0.000        1.000    
+      93  pol4       s    0.000        1.000    
+      94  pol5       s    0.000        1.000    
+      95  pol6       s    0.000        1.000    
+      96  pol7       s    0.000        1.000    
+      97  pol8       s    0.000        1.000    
+      98  vol1       s    0.000       0.7964    
+      99  vol2       s    0.000        1.000    
+     100  vol3       s    0.000        1.000    
+     101  vol4       s    0.000        1.000    
+     102  vol5       s    0.000        1.000    
+     103  vol6       s    0.000        1.000    
+     104  vol7       s    0.000        1.000    
+     105  vol8       s    0.000        1.000    
+     106  pos1       c                                 18
+     107  pos2       c                                 20
+     108  pos3       c                                 20
+     109  pos4       c                                 20
+     110  pos5       c                                 20
+     111  pos6       c                                 20
+     112  pos7       c                                 19
+     113  pos8       c                                 20
+  
+      Total  #cases w/   #missing
+     #cases    miss. D  ord. vals   #X-var   #N-var   #F-var   #S-var
+        310         31          0        0        0        0      104
+     #P-var   #M-var   #B-var   #C-var   #I-var
+          0        0        0        8        0
+ Number of cases used for training: 279
+ Number of split variables: 112
+ Number of cases excluded due to 0 weight or missing D: 31
+  
+ Pruning by v-fold cross-validation, with v = 10
+ Selected tree is based on mean of CV estimates
+ Number of SE's for pruned tree: 0.2500
+  
+ Nearest-neighbor node models
+ Bivariate preference
+ Estimated priors
+ Unit misclassification costs
+ Bivariate split highest priority
+ Interaction splits 2nd priority; no linear splits
+ Split values for N and S variables based on exhaustive search
+ Maximum number of split levels: 10
+ Minimum node sample size: 2
+ Non-univariate split at root node
+ Size and CV mean cost and SE of subtrees:
+  Tree   #Tnodes  Mean Cost   SE(Mean)   BSE(Mean)  Median Cost  BSE(Median)
+    1       13   1.111E-01   1.881E-02   8.168E-03   1.071E-01   9.797E-03
+    2       12   1.111E-01   1.881E-02   8.168E-03   1.071E-01   9.797E-03
+    3**     11   1.111E-01   1.881E-02   8.168E-03   1.071E-01   9.797E-03
+    4        6   1.183E-01   1.933E-02   9.164E-03   1.250E-01   1.713E-02
+    5        5   1.219E-01   1.958E-02   1.169E-02   1.250E-01   1.553E-02
+    6        2   1.183E-01   1.933E-02   1.087E-02   1.250E-01   1.989E-02
+    7        1   1.254E-01   1.983E-02   1.566E-02   1.429E-01   1.968E-02
+  
+ 0-SE tree based on mean is marked with * and has 11 terminal nodes
+ 0-SE tree based on median is marked with + and has 11 terminal nodes
+ Selected-SE tree based on mean using naive SE is marked with **
+ Selected-SE tree based on mean using bootstrap SE is marked with --
+ Selected-SE tree based on median and bootstrap SE is marked with ++
+ * tree, ** tree, + tree, and ++ tree all the same
+  
+ Following tree is based on mean CV with naive SE estimate (**)
+  
+ Structure of final tree. Each terminal node is marked with a T.
+  
+ Node cost is node misclassification cost divided by number of training cases
+        Node    Total    Train    Predicted        Node    Split variable followed by
+       label    cases    cases    class            cost    (+)fit variable(s)
+           1      279      279    1              9.032E-02 h2y8 +h2y8 +h2y5
+           2      160      160    1              5.062E-02 pos5 +pos5 +flex1
+           4T       9        9    1              1.394E-03 -
+           5      151      151    1              5.364E-02 flex1 +flex1 +pos5
+          10      147      147    1              5.510E-02 arom4 +arom4 +pos5
+          20      140      140    1              2.571E-02 pol1 +pol1 +pos5
+          40T      41       41    1              2.195E-02 vol1 +vol1 +h1y1
+          41T      99       99    1              1.818E-02 chge6 +chge6 +pos5
+          21        7        7    0              3.857E-01 h2y3 +h2y3
+          42T       2        2    1              1.394E-03 -
+          43T       5        5    0              1.800E-01 - +dlt2 
+          11T       4        4    0              1.820E-03 -
+           3      119      119    0              5.294E-02 arom5 +arom5 +flex1
+           6       95       95    0              9.474E-03 pos6 +pos6 +pos4
+          12T       8        8    0              0.000E+00 - +pos4 
+          13T      87       87    0              0.000E+00 - +pos3 +pos5
+           7       24       24    1              2.250E-01 flex1 +flex1
+          14       18       18    1              2.500E-01 h1y1 +h1y1
+          28T      12       12    1              7.500E-02 - +h1y1 
+          29T       6        6    0              0.000E+00 - +pos6 
+          15T       6        6    0              1.820E-03 -
+  
+ Number of terminal nodes of final tree: 11
+ Total number of nodes of final tree: 21
+ Second best split variable (based on interaction test) at root node is h2y5
+  
+ Classification tree:
+ For categorical variable splits, values not in training data go to the right
+  
+ Node 1: h2y8 <= -1.1500000
+   Node 2: pos5 = "A", "M"
+     Node 4: Mean cost = 0.13940092E-02
+   Node 2: pos5 /= "A", "M"
+     Node 5: flex1 <= 0.85535000
+       Node 10: arom4 <= 0.61115000
+         Node 20: pol1 <= 0.49385000
+           Node 40: Mean cost = 0.21951220E-01
+         Node 20: pol1 > 0.49385000 or NA
+           Node 41: Mean cost = 0.18181818E-01
+       Node 10: arom4 > 0.61115000 or NA
+         Node 21: h2y3 <= -1.3500000
+           Node 42: Mean cost = 0.13940092E-02
+         Node 21: h2y3 > -1.3500000 or NA
+           Node 43: Mean cost = 0.18000000
+     Node 5: flex1 > 0.85535000 or NA
+       Node 11: Mean cost = 0.18202765E-02
+ Node 1: h2y8 > -1.1500000 or NA
+   Node 3: arom5 <= 0.27780000
+     Node 6: pos6 = "Y"
+       Node 12: Mean cost = 0.0000000
+     Node 6: pos6 /= "Y"
+       Node 13: Mean cost = 0.0000000
+   Node 3: arom5 > 0.27780000 or NA
+     Node 7: flex1 <= 0.85535000
+       Node 14: h1y1 <= -0.75000000
+         Node 28: Mean cost = 0.75000000E-01
+       Node 14: h1y1 > -0.75000000 or NA
+         Node 29: Mean cost = 0.0000000
+     Node 7: flex1 > 0.85535000 or NA
+       Node 15: Mean cost = 0.18202765E-02
+ 
+ ***************************************************************
+  
+Node 1: Intermediate node
+ A case goes into Node 2 if h2y8 <= -1.1500000
+ Number of nearest neighbors = 6
+ h2y8 mean = -0.76774194 SD = 1.1702800
+ h2y5 mean = -1.1197133 SD = 1.3135062
+               correlation = 0.24879712E-01
+ Class      Number   Posterior
+ 0             121  0.4337E+00
+ 1             158  0.5663E+00
+ Number of training cases misclassified = 28
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 2: Intermediate node
+ A case goes into Node 4 if pos5 = "A", "M"
+ Number of nearest neighbors = 6
+ pos5 mode = Y
+ flex1 mean = 0.75494687
+ Class      Number   Posterior
+ 0              20  0.1250E+00
+ 1             140  0.8750E+00
+ Number of training cases misclassified = 9
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 4: Terminal node
+ Using maximum likelihood
+ Class      Number   Posterior
+ 0               0  0.1549E-02
+ 1               9  0.9985E+00
+ ----------------------------
+Node 5: Intermediate node
+ A case goes into Node 10 if flex1 <= 0.85535000
+ Number of nearest neighbors = 6
+ flex1 mean = 0.75204834
+ pos5 mode = Y
+ Class      Number   Posterior
+ 0              20  0.1325E+00
+ 1             131  0.8675E+00
+ Number of training cases misclassified = 9
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 10: Intermediate node
+ A case goes into Node 20 if arom4 <= 0.61115000
+ Number of nearest neighbors = 5
+ arom4 mean = 0.46865986E-01
+ pos5 mode = Y
+ Class      Number   Posterior
+ 0              16  0.1088E+00
+ 1             131  0.8912E+00
+ Number of training cases misclassified = 9
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 20: Intermediate node
+ A case goes into Node 40 if pol1 <= 0.49385000
+ Number of nearest neighbors = 5
+ pol1 mean = 0.46616500
+ pos5 mode = Y
+ Class      Number   Posterior
+ 0              12  0.8571E-01
+ 1             128  0.9143E+00
+ Number of training cases misclassified = 4
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 40: Terminal node
+ Number of nearest neighbors = 4
+ vol1 mean = 0.51594146 SD = 0.21973985
+ h1y1 mean = -0.11707317 SD = 0.95288944
+               correlation = -0.49508870
+ Class      Number   Posterior
+ 0               7  0.1707E+00
+ 1              34  0.8293E+00
+ ----------------------------
+Node 41: Terminal node
+ Number of nearest neighbors = 5
+ chge6 mean = 0.52020202
+ pos5 mode = F
+ Class      Number   Posterior
+ 0               5  0.5051E-01
+ 1              94  0.9495E+00
+ ----------------------------
+Node 21: Intermediate node
+ A case goes into Node 42 if h2y3 <= -1.3500000
+ Number of nearest neighbors = 3
+ h2y3 mean = 0.85714286E-01
+                                Fit variable
+ Class      Number   Posterior  h2y3
+ 0               4  0.5714E+00
+ 1               3  0.4286E+00
+ Number of training cases misclassified = 3
+ If node model is inapplicable due to missing values, predicted class is "0"
+ ----------------------------
+Node 42: Terminal node
+ Using maximum likelihood
+ Class      Number   Posterior
+ 0               0  0.1549E-02
+ 1               2  0.9985E+00
+ ----------------------------
+Node 43: Terminal node
+ Number of nearest neighbors = 3
+ dlt2 mean = 0.26600000
+                                Fit variable
+ Class      Number   Posterior  dlt2
+ 0               4  0.8000E+00
+ 1               1  0.2000E+00
+ ----------------------------
+Node 11: Terminal node
+ Using maximum likelihood
+ Class      Number   Posterior
+ 0               4  0.9980E+00
+ 1               0  0.2023E-02
+ ----------------------------
+Node 3: Intermediate node
+ A case goes into Node 6 if arom5 <= 0.27780000
+ Number of nearest neighbors = 5
+ arom5 mean = 0.13539412 SD = 0.23511322
+ flex1 mean = 0.67211176 SD = 0.26049032
+               correlation = 0.12247274
+ Class      Number   Posterior
+ 0             101  0.8487E+00
+ 1              18  0.1513E+00
+ Number of training cases misclassified = 7
+ If node model is inapplicable due to missing values, predicted class is "0"
+ ----------------------------
+Node 6: Intermediate node
+ A case goes into Node 12 if pos6 = "Y"
+ pos6 mode = L
+ pos4 mode = P
+ Class      Number   Posterior
+ 0              90  0.9474E+00
+ 1               5  0.5263E-01
+ Number of training cases misclassified = 1
+ If node model is inapplicable due to missing values, predicted class is "0"
+ ----------------------------
+Node 12: Terminal node
+ Using maximum likelihood
+ pos4 mode = P
+                                Fit variable
+ Class      Number   Posterior  pos4
+ 0               5  0.6250E+00
+ 1               3  0.3750E+00
+ ----------------------------
+Node 13: Terminal node
+ Using maximum likelihood
+ pos3 mode = P
+ pos5 mode = P
+ Class      Number   Posterior
+ 0              85  0.9770E+00
+ 1               2  0.2299E-01
+ ----------------------------
+Node 7: Intermediate node
+ A case goes into Node 14 if flex1 <= 0.85535000
+ Number of nearest neighbors = 4
+ flex1 mean = 0.77054167
+                                Fit variable
+ Class      Number   Posterior  flex1
+ 0              11  0.4583E+00
+ 1              13  0.5417E+00
+ Number of training cases misclassified = 6
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 14: Intermediate node
+ A case goes into Node 28 if h1y1 <= -0.75000000
+ Number of nearest neighbors = 3
+ h1y1 mean = -0.67777778
+                                Fit variable
+ Class      Number   Posterior  h1y1
+ 0               5  0.2778E+00
+ 1              13  0.7222E+00
+ Number of training cases misclassified = 5
+ If node model is inapplicable due to missing values, predicted class is "1"
+ ----------------------------
+Node 28: Terminal node
+ Number of nearest neighbors = 3
+ h1y1 mean = -1.2500000
+                                Fit variable
+ Class      Number   Posterior  h1y1
+ 0               1  0.8333E-01
+ 1              11  0.9167E+00
+ ----------------------------
+Node 29: Terminal node
+ Using maximum likelihood
+ pos6 mode = S
+                                Fit variable
+ Class      Number   Posterior  pos6
+ 0               4  0.6667E+00
+ 1               2  0.3333E+00
+ ----------------------------
+Node 15: Terminal node
+ Using maximum likelihood
+ Class      Number   Posterior
+ 0               6  0.9980E+00
+ 1               0  0.2023E-02
+ ----------------------------
+ 
+ Classification matrix for training sample:
+ Predicted      True class
+ class              0         1
+ 0                117         1
+ 1                  4       157
+ Total            121       158
+ 
+ Number of cases used for tree construction: 279
+ Number misclassified: 5
+ Resubstitution estimate of mean misclassification cost: 0.17921147E-01
+ 
+ Observed and fitted values are stored in fitted.txt
+ Elapsed time in seconds: 2.0377

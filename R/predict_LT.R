@@ -22,14 +22,25 @@ predict_LT <- function(fit, x_new, dat = NULL){
     x_new = data.frame(matrix(x_new,1))
   }
 
+  # 先将传入的dat变成只有X的版本
+  if(!is.null(dat)){
+    if(is.null(colnames(dat)) & (dim(dat)[2] != length(cname_save))){
+      stop('The data entry has something wrong. Column name is missing, and we do not know which coliumn represents the response')
+    }
+    matching_position = match(cname_save, colnames(dat))
+    if(anyNA(matching_position)){
+      stop('The data entry has something wrong. Some columns might be missing.')
+    }
+    dat = dat[,matching_position]
+  }
+
   # 开始对名字
   matching_position = match(cname_save, colnames(x_new))
   if(anyNA(matching_position)){
     if(dim(x_new)[2] == length(cname_save)){
       colnames(x_new) = cname_save # 假设test的变量位置和原数据一模一样，老罗也是这么做的
     }else{
-      print('The new data is missing columns')
-      return()
+      stop('The new data has the wrong number of columns')
     }
   }else{
     x_new = x_new[,matching_position]
@@ -45,15 +56,18 @@ predict_LT <- function(fit, x_new, dat = NULL){
   # FACT的话要将所有的x_new都变成数字
   if(fit$select_method == 'FACT'){
     cov_class_new = sapply(x_new,class) %in% c('numeric', 'integer')
+    # cat('cov_class:',cov_class_new,'\n')
     if(!all(cov_class_new)){
       # 如果不全是数字
       for(o_o in which(!cov_class_new)){
         cat_trans_tmp = fit$cat_trans[[fit$cnames[o_o]]]
         if(unlist(x_new[o_o]) %in% cat_trans_tmp[,1]){
           # 既不是NA也不是new_level
-          x_new[o_o] = cat_trans_tmp[cat_trans_tmp[,1] == unlist(x_new[o_o]),2]
+          # 下面这一行有as.character 因为如果两个factor level不同的时候
+          # 会报错误 level sets of factors are different
+          x_new[o_o] = cat_trans_tmp[cat_trans_tmp[,1] == as.character(unlist(x_new[o_o])),2]
         }else{
-          x_new[o_o] = NA
+          x_new[o_o] = NA # 这可能会导致出现NA，给后面带来麻烦
         }
       }
     }
@@ -61,8 +75,11 @@ predict_LT <- function(fit, x_new, dat = NULL){
   # 现在从FACT出来的应该都是数字+NA了
   # 这里产生一个分水岭，对于能Handle NA的方法，不进行任何操作
   # 对于无法Handle NA的方法，这里直接填上去。
-  x_new = class_centroid_impute(dat, fit$response, prior, cov_class = fit$cov_class, cat_trans = fit$cat_trans,
-                                    type = 'all', x_new = x_new)
+  if(any(is.na(x_new))){
+    # print(x_new)
+    x_new = class_centroid_impute(dat, fit$response, prior = fit$prior, cov_class = fit$cov_class, cat_trans = fit$cat_trans,
+                                  type = 'all', x_new = x_new)
+  }
 
   repeat{
     node_tmp = fit$treenode[[tmp_node]][[1]]
@@ -146,6 +163,9 @@ predict_LT <- function(fit, x_new, dat = NULL){
             }
             tmp_node = node_tmp$children[which.min(inline_x > c(node_tmp$split_cri,Inf))]
             # tmp_node = 2*tmp_node + ifelse(inline_x %in% node_tmp$split_cri, 0, 1)
+          }else if(fit$select_method == 'LDATree'){
+            # For LDATree, the criteria is a vector of levels
+            tmp_node = 2*tmp_node + ifelse(inline_x %in% node_tmp$split_cri, 0, 1)
           }else{
             stop('Prediction for other methods is still under development')
           }
@@ -177,7 +197,19 @@ predict_LT <- function(fit, x_new, dat = NULL){
   }
 }
 
-
+predict_Tree <- function(fit, x_new, data = NULL){
+  # wrapper for prediction
+  if(is.null(dim(x_new)) | dim(x_new)[1] == 1){
+    return(predict_LT(fit, x_new, data))
+  }else{
+    # Classification Tree, 结果一定是factor
+    res = character(dim(x_new)[1])
+    for(i in seq(res)){
+      res[i] = as.character(predict_LT(fit, x_new[i,], data))
+    }
+    return(res)
+  }
+}
 
 
 

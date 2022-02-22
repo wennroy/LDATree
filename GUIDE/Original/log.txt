@@ -1,0 +1,144 @@
+ GUIDE Classification and Regression Trees and Forests
+ Version 40.0 (Build date: February 12, 2022)      
+ Compiled with NAG Fortran 6.2.0 on macOS Catalina 10.15.7             
+ Copyright (c) 1997-2022 Wei-Yin Loh. All rights reserved.
+ Software based upon work partially supported by the U.S. Army Research Office,
+ National Science Foundation, National Institutes of Health,
+ Bureau of Labor Statistics, USDA Economic Research Service,
+ and Eli Lilly.
+  
+ Choose one of the following options:
+ 0. Read the warranty disclaimer
+ 1. Create a GUIDE input file
+ Input your choice:  Batch run with input file 
+ Input 1 for model fitting, 2 for importance or DIF scoring, 3 for data conversion: 1
+ Output file is output.txt
+  
+ Job start date and time: 02/21/22 at 18:29
+  
+ Input 1 for single tree, 2 for ensemble of trees: 1
+ Input 1 for classification, 2 for regression, 3 for propensity score grouping
+ Input your choice: 1
+ Input 1 for simple, 2 for nearest-neighbor, 3 for kernel method: 1
+ Input 0 for linear, interaction and univariate splits (in this order),
+       1 for univariate, linear and interaction splits (in this order),
+       2 to skip linear splits,
+       3 to skip linear and interaction splits: 1
+ Input 0 to specify tree with fixed no. of nodes, 1 to prune by CV,
+       2 by test sample, 3 for no pruning: 1
+ Bonferroni alpha = 0.100
+  
+ Input name of data description file (max 100 characters);
+ enclose with matching quotes if it has spaces: peptide_dsc.txt
+ Reading data description file ...
+ Training sample file: dat_tmp.csv
+ Missing value code: NA
+ Records in data file start on line 2
+ D variable is bind
+ Reading data file ...
+ Number of records in data file: 310
+ Length of longest entry in data file: 6
+ Checking for missing values ...
+ Finished checking
+ Missing values found in D variable
+ Recoding D values to integers
+ Finished recoding
+ Number of classes: 2
+ Assigning integer codes to values of 8 categorical variables
+ Re-checking data ...
+ Allocating missing value information ...
+ Assigning codes to missing values if any ...
+ Data checks complete
+ Creating missing value indicators ...
+ Rereading data ...
+ Class  #Cases     Proportion
+ 0         121     0.43369176
+ 1         158     0.56630824
+      Total  #cases w/   #missing
+     #cases    miss. D  ord. vals   #X-var   #N-var   #F-var   #S-var
+        310         31          0        0        0        0      104
+     #P-var   #M-var   #B-var   #C-var   #I-var
+          0        0        0        8        0
+ Number of cases used for training: 279
+ Number of split variables: 112
+ Number of cases excluded due to 0 weight or missing D: 31
+ Finished reading data file
+ Input number of cross-validations: 10
+ Selected tree is based on mean of CV estimates
+ Input number of SEs for pruning:  0.250
+ Choose 1 for estimated priors, 2 for equal priors, 3 to input priors from a file
+ Input 1, 2, or 3: 1
+ Choose 1 for unit misclassification costs, 2 to input costs from a file
+ Input 1 or 2: 1
+ Univariate split highest priority
+ Interaction and linear splits 2nd and 3rd priorities
+ Choose a split point selection method for numerical variables:
+ Choose 1 to use faster method based on sample quantiles
+ Choose 2 to use exhaustive search
+ Input 1 or 2: 2
+ Maximum number of split levels: 10
+ Input 1 for default minimum node size, 2 to specify minimum value: 1
+ Minimum node size: 2
+ Choose 0=no LaTeX, 1=tree without node numbers, 2=tree with node numbers: 1
+ You can store the variables and/or values used to split and fit in a file
+ Choose 1 to skip this step, 2 to store split and fit variables,
+ 3 to store split variables and their values
+ Input your choice: 1
+ Input 2 to save fitted values and node IDs; 1 otherwise: 2
+ File name is fitted.txt
+ Warning: file is overwritten
+ Input 2 to write R function for predicting new cases, 1 otherwise: 1
+ Constructing main tree ...
+ Top-10 variables and chi-squared values at root node
+      1  0.1429E+03   vol5
+      2  0.1416E+03   h2y5
+      3  0.1371E+03   arom5
+      4  0.1281E+03   h2y8
+      5  0.1239E+03   pol8
+      6  0.1147E+03   pol5
+      7  0.1140E+03   ex1
+      8  0.1094E+03   bulk5
+      9  0.1091E+03   dlt5
+     10  0.1091E+03   h3y5
+ Best and 2nd best split variables at root node are vol5 and h2y5
+ Number of subtrees: 10
+ Performing 10-fold cross-validation:
+ Completed cross-validation fold 1
+ Completed cross-validation fold 2
+ Completed cross-validation fold 3
+ Completed cross-validation fold 4
+ Completed cross-validation fold 5
+ Completed cross-validation fold 6
+ Completed cross-validation fold 7
+ Completed cross-validation fold 8
+ Completed cross-validation fold 9
+ Completed cross-validation fold 10
+  
+ Pruning main tree.  Please wait.
+ Results of subtree sequence
+ Trees based on mean with naive SE are marked with * and **
+ Tree based on mean with bootstrap SE is marked with --
+ Trees based on median with finite bootstrap SE are marked with + and ++
+    Subtree        #Terminal nodes
+      1                    18
+      2                    14
+      3                     9
+      4                     8
+      5                     6
+      6                     5
+      7**                   4
+      8++                   3
+      9                     2
+     10                     1
+ 0-SE tree based on mean is marked with * and has 4 terminal nodes
+ ** tree same as -- tree
+ + tree same as ++ tree
+ * tree same as ** tree
+ * tree same as -- tree
+  
+ Number of terminal nodes of final tree: 4
+ Writing predicted values...
+ ...completed
+ Results are stored in output.txt
+ Observed and fitted values are stored in fitted.txt
+ Elapsed time in seconds: 4.687
