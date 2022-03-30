@@ -52,10 +52,11 @@ predict_LT <- function(fit, x_new, dat = NULL){
   friend_list = NULL
   ### 一个距离算法
 
-  # 检查new_level和NA
+  cov_class_new = sapply(x_new,class) %in% c('numeric', 'integer') # 为了后面检测new level and NA
+  ##### 检查new_level和NA #####
   # FACT的话要将所有的x_new都变成数字
   if(fit$select_method == 'FACT'){
-    cov_class_new = sapply(x_new,class) %in% c('numeric', 'integer')
+    # cov_class_new = sapply(x_new,class) %in% c('numeric', 'integer')
     # cat('cov_class:',cov_class_new,'\n')
     if(!all(cov_class_new)){
       # 如果不全是数字
@@ -71,15 +72,48 @@ predict_LT <- function(fit, x_new, dat = NULL){
         }
       }
     }
+
+    # 现在从FACT出来的应该都是数字+NA了
+    # 这里产生一个分水岭，对于能Handle NA的方法，不进行任何操作
+    # 对于无法Handle NA的方法，这里直接填上去。
+    if(any(is.na(x_new))){
+      # print(x_new)
+      x_new = class_centroid_impute(dat, fit$response, prior = fit$prior, cov_class = fit$cov_class, cat_trans = fit$cat_trans,
+                                    type = 'all', x_new = x_new)
+    }
   }
-  # 现在从FACT出来的应该都是数字+NA了
-  # 这里产生一个分水岭，对于能Handle NA的方法，不进行任何操作
-  # 对于无法Handle NA的方法，这里直接填上去。
-  if(any(is.na(x_new))){
-    # print(x_new)
-    x_new = class_centroid_impute(dat, fit$response, prior = fit$prior, cov_class = fit$cov_class, cat_trans = fit$cat_trans,
-                                  type = 'all', x_new = x_new)
+
+  # LDA的话，New level -> NA
+  # NA -> 先随机变成Mean/Mode好了
+  # 先检测new level
+  if(fit$select_method == 'LDATree'){
+    if(!all(cov_class_new)){
+      for(o_o in which(!cov_class_new)){
+        # print(x_new)
+        # print(o_o)
+        if(!unlist(x_new[o_o]) %in% names(fit$level_record[[o_o]])){
+          # 不加unlist的话会报莫名其妙的错误
+          # 让一个1*1的df Female %in% c('Female') = FALSE
+          x_new[o_o] = names(fit$level_record[[o_o]])[which.max(fit$level_record[[o_o]])]
+        }
+      }
+    }
+    for(o_o in seq(x_new)){
+      if(is.na(x_new[o_o])){
+        # Numerical
+        if(class(fit$level_record[[o_o]]) == 'numeric'){
+          x_new[o_o] = fit$level_record[[o_o]]
+        }else{
+          x_new[o_o] = names(fit$level_record[[o_o]])[which.max(fit$level_record[[o_o]])]
+        }
+      }
+    }
   }
+  # # 再检测是否有NA
+  # 但这会破坏原有的结构，先放在这里好了
+  # 因为之前对于NA的数据我们也是可以handle的
+  # 2022/02/23 但是现在我还是准备先忽略这个问题
+  # 因为日后还是要修改这个NA imputing
 
   repeat{
     node_tmp = fit$treenode[[tmp_node]][[1]]

@@ -179,7 +179,7 @@ Treee <- function(formula, data, select_method = 'FACT', split_method = 'univari
   CV_table = CV_table[dim(CV_table)[1]:1,]
   tmp = 1
   # while(CV_table$alpha[tmp] <= alpha_final){
-  while(tmp < idx_final){
+  while(tmp <= idx_final){ # CV_table 的最后一列alpha对应的不是下一排树，而是当前这一排
     fit = cut_alpha(fit,CV_table$alpha[tmp],select_method)
     fit = traverse(fit)
     tmp = tmp + 1
@@ -718,6 +718,28 @@ tree_growing <- function(response, dat, prior, misclass_cost, max_level, min_nsi
   }else{
     res$cov_class = cov_class
   }
+
+  #####
+  # 虽然我们不能把数据也存进fit
+  # 但是为了记录众数 -> 针对new level的处理
+  # 我们这里存一个matrix，记录每个cat变量的level和数量
+  # 并且记录num变量的median
+
+  # 因为FACT的cat不显示成cat的样子
+  # 所以这里先只对LDATree进行操作
+  if(select_method == 'LDATree'){
+    level_record = vector("list",dim(dat)[2])
+    names(level_record) = colnames(dat)
+    for(x_x in seq(dim(dat)[2])){
+      if(cov_class[x_x]){
+        level_record[x_x] = quantile(dat[,x_x], 0.5, type = 3)
+      }else{
+        level_record[[x_x]] = table(droplevels(dat[,x_x]))
+      }
+    }
+    res$level_record = level_record
+  }
+  #####
 
   cat('The LDA tree is completed.\n')
   return(res)
